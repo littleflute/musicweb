@@ -271,7 +271,7 @@ function edit_init(){
         if(relay){
             s.onload=relay;
         }
-        s.onerror=onerror||function(){alert('error loading '+fn)}
+        s.onerror=onerror||function(){alert('xdRefactor: error loading '+fn)}
         document.head.appendChild(s)
     }
     abc2svg.abc_end=function(){}
