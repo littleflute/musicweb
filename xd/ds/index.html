@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>应用界面</title>
+    </head>
+    <body>
+        <script>
+            class CApp {
+                constructor() {
+                    // 创建主容器
+                    this.createLayout();
+                    // 初始化工具条
+                    this.initToolbar();
+                    // 初始化画布
+                    this.initCanvas();
+                    // 初始化状态栏
+                    this.initStatusBar();
+                    // 设置样式
+                    this.applyStyles();
+                }
+                
+                createLayout() {
+                    // 创建工具条
+                    this.toolbar = document.createElement('div');
+                    this.toolbar.id = 'toolbar';
+                    this.toolbar.textContent = '工具条';
+                    
+                    // 创建画布容器
+                    this.canvasContainer = document.createElement('div');
+                    this.canvasContainer.id = 'canvas-container';
+                    
+                    // 创建画布
+                    this.canvas = document.createElement('canvas');
+                    this.canvas.id = 'main-canvas';
+                    this.canvasContainer.appendChild(this.canvas);
+                    
+                    // 创建状态栏
+                    this.statusbar = document.createElement('div');
+                    this.statusbar.id = 'statusbar';
+                    this.statusbar.textContent = '就绪';
+                    
+                    // 将元素添加到body
+                    document.body.appendChild(this.toolbar);
+                    document.body.appendChild(this.canvasContainer);
+                    document.body.appendChild(this.statusbar);
+                }
+                
+                initToolbar() {
+                    // 清空默认文本
+                    this.toolbar.textContent = '';
+                    
+                    // 创建工具按钮
+                    const tools = ['选择', '画笔', '矩形', '圆形', '文本', '擦除'];
+                    tools.forEach(tool => {
+                        const button = document.createElement('button');
+                        button.className = 'tool-btn';
+                        button.textContent = tool;
+                        button.addEventListener('click', () => {
+                            this.setActiveTool(tool);
+                        });
+                        this.toolbar.appendChild(button);
+                    });
+                    
+                    // 添加颜色选择器
+                    const colorPicker = document.createElement('input');
+                    colorPicker.type = 'color';
+                    colorPicker.value = '#000000';
+                    colorPicker.addEventListener('change', (e) => {
+                        this.currentColor = e.target.value;
+                    });
+                    this.toolbar.appendChild(colorPicker);
+                    
+                    // 添加线宽选择
+                    const lineWidth = document.createElement('select');
+                    [1, 2, 3, 5, 8, 10].forEach(width => {
+                        const option = document.createElement('option');
+                        option.value = width;
+                        option.textContent = `${width}px`;
+                        lineWidth.appendChild(option);
+                    });
+                    lineWidth.addEventListener('change', (e) => {
+                        this.lineWidth = e.target.value;
+                    });
+                    this.toolbar.appendChild(lineWidth);
+                }
+                
+                initCanvas() {
+                    // 设置画布大小
+                    this.resizeCanvas();
+                    
+                    // 初始化绘图上下文
+                    this.ctx = this.canvas.getContext('2d');
+                    this.isDrawing = false;
+                    this.currentColor = '#000000';
+                    this.lineWidth = 2;
+                    
+                    // 绑定绘图事件
+                    this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+                    this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+                    this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+                    this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+                    
+                    // 监听窗口大小变化
+                    window.addEventListener('resize', () => this.resizeCanvas());
+                }
+                
+                initStatusBar() {
+                    // 添加鼠标位置显示
+                    this.canvas.addEventListener('mousemove', (e) => {
+                        const rect = this.canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        this.statusbar.textContent = `位置: (${Math.round(x)}, ${Math.round(y)}) | 工具: ${this.currentTool || '画笔'} | 颜色: ${this.currentColor}`;
+                    });
+                }
+                
+                resizeCanvas() {
+                    // 获取容器尺寸
+                    const container = this.canvasContainer;
+                    this.canvas.width = container.clientWidth;
+                    this.canvas.height = container.clientHeight;
+                }
+                
+                startDrawing(e) {
+                    this.isDrawing = true;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(e.offsetX, e.offsetY);
+                }
+                
+                draw(e) {
+                    if (!this.isDrawing) return;
+                    
+                    this.ctx.lineWidth = this.lineWidth;
+                    this.ctx.lineCap = 'round';
+                    this.ctx.strokeStyle = this.currentColor;
+                    
+                    this.ctx.lineTo(e.offsetX, e.offsetY);
+                    this.ctx.stroke();
+                }
+                
+                stopDrawing() {
+                    this.isDrawing = false;
+                    this.ctx.closePath();
+                }
+                
+                setActiveTool(toolName) {
+                    this.currentTool = toolName;
+                    // 更新所有按钮状态
+                    document.querySelectorAll('.tool-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.textContent === toolName);
+                    });
+                }
+                
+                applyStyles() {
+                    // 创建样式元素
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            flex-direction: column;
+                            height: 100vh;
+                            overflow: hidden;
+                        }
+                        
+                        #toolbar {
+                            background: #f0f0f0;
+                            padding: 10px;
+                            border-bottom: 1px solid #ccc;
+                            display: flex;
+                            gap: 10px;
+                            align-items: center;
+                            flex-shrink: 0;
+                        }
+                        
+                        .tool-btn {
+                            padding: 8px 16px;
+                            border: 1px solid #999;
+                            background: white;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        }
+                        
+                        .tool-btn:hover {
+                            background: #e0e0e0;
+                        }
+                        
+                        .tool-btn.active {
+                            background: #4a90e2;
+                            color: white;
+                            border-color: #357ae8;
+                        }
+                        
+                        #canvas-container {
+                            flex: 1;
+                            background: #fff;
+                            overflow: hidden;
+                            position: relative;
+                        }
+                        
+                        #main-canvas {
+                            display: block;
+                            width: 100%;
+                            height: 100%;
+                            background: #fafafa;
+                            cursor: crosshair;
+                        }
+                        
+                        #statusbar {
+                            background: #333;
+                            color: white;
+                            padding: 8px 15px;
+                            font-size: 14px;
+                            border-top: 1px solid #555;
+                            flex-shrink: 0;
+                        }
+                        
+                        select, input[type="color"] {
+                            padding: 5px;
+                            border: 1px solid #999;
+                            border-radius: 4px;
+                            background: white;
+                        }
+                    `;
+                    
+                    document.head.appendChild(style);
+                }
+            }
+            
+            const oApp = new CApp();
+        </script>
+    </body>
+</html>
+<!--
+let it can run on cell phone perfectly.
+-->
