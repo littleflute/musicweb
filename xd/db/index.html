@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应用界面 - 可移动设置窗口</title>
+    <style>
+        /* 基础样式重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* 防止整体滚动 */
+        }
+        
+        /* 设置窗口样式 */
+        .movable-wnd {
+            position: fixed;
+            width: 400px;
+            height: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none; /* 默认隐藏 */
+            overflow: hidden;
+            resize: both; /* 允许调整大小 */
+            min-width: 300px;
+            min-height: 200px;
+        }
+        
+        .wnd-header {
+            height: 40px;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            cursor: move;
+            user-select: none;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .wnd-title {
+            font-weight: bold;
+        }
+        
+        .wnd-close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .wnd-close-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .wnd-content {
+            padding: 20px;
+            height: calc(100% - 40px);
+            overflow-y: auto;
+        }
+        
+        .setting-item {
+            margin-bottom: 15px;
+        }
+        
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .setting-item input[type="range"] {
+            width: 100%;
+        }
+        
+        .setting-item select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        
+        /* 设置窗口显示时的遮罩层 */
+        .wnd-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // 可移动窗口类
+        class CMovableWnd {
+            constructor(options = {}) {
+                this.id = options.id || 'movable-wnd';
+                this.title = options.title || '设置窗口';
+                this.width = options.width || 400;
+                this.height = options.height || 300;
+                this.x = options.x || 100;
+                this.y = options.y || 100;
+                this.isVisible = false;
+                this.isDragging = false;
+                this.dragOffset = { x: 0, y: 0 };
+                
+                // 创建窗口DOM
+                this.createWindow();
+                // 绑定事件
+                this.bindEvents();
+            }
+            
+            // 创建窗口DOM结构
+            createWindow() {
+                // 创建遮罩层
+                this.mask = document.createElement('div');
+                this.mask.className = 'wnd-mask';
+                document.body.appendChild(this.mask);
+                
+                // 创建窗口
+                this.window = document.createElement('div');
+                this.window.className = 'movable-wnd';
+                this.window.id = this.id;
+                this.window.style.width = `${this.width}px`;
+                this.window.style.height = `${this.height}px`;
+                this.window.style.left = `${this.x}px`;
+                this.window.style.top = `${this.y}px`;
+                
+                // 窗口内容
+                this.window.innerHTML = `
+                    <div class="wnd-header">
+                        <div class="wnd-title">${this.title}</div>
+                        <button class="wnd-close-btn">&times;</button>
+                    </div>
+                    <div class="wnd-content">
+                        <div class="setting-item">
+                            <label for="canvas-bg-color">画布背景色</label>
+                            <input type="color" id="canvas-bg-color" value="#ffffff">
+                            <span class="color-preview" id="color-preview" style="background-color: #ffffff"></span>
+                        </div>
+                        <div class="setting-item">
+                            <label for="line-width">线条宽度: <span id="line-width-value">2</span>px</label>
+                            <input type="range" id="line-width" min="1" max="10" value="2">
+                        </div>
+                        <div class="setting-item">
+                            <label for="draw-mode">绘制模式</label>
+                            <select id="draw-mode">
+                                <option value="rectangle">矩形</option>
+                                <option value="circle">圆形</option>
+                                <option value="line">线条</option>
+                                <option value="text">文本</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label for="grid-snap">网格对齐</label>
+                            <input type="checkbox" id="grid-snap">
+                        </div>
+                        <div class="setting-item">
+                            <label for="auto-save">自动保存</label>
+                            <input type="checkbox" id="auto-save">
+                        </div>
+                        <div class="setting-item">
+                            <button id="reset-settings" style="padding: 8px 16px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">重置设置</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(this.window);
+            }
+            
+            // 绑定窗口事件
+            bindEvents() {
+                const header = this.window.querySelector('.wnd-header');
+                const closeBtn = this.window.querySelector('.wnd-close-btn');
+                
+                // 开始拖动
+                header.addEventListener('mousedown', (e) => {
+                    if (e.target === closeBtn) return;
+                    
+                    this.isDragging = true;
+                    const rect = this.window.getBoundingClientRect();
+                    this.dragOffset.x = e.clientX - rect.left;
+                    this.dragOffset.y = e.clientY - rect.top;
+                    
+                    e.preventDefault();
+                });
+                
+                // 拖动中
+                document.addEventListener('mousemove', (e) => {
+                    if (!this.isDragging) return;
+                    
+                    this.x = e.clientX - this.dragOffset.x;
+                    this.y = e.clientY - this.dragOffset.y;
+                    
+                    // 限制窗口在可视区域内
+                    const maxX = window.innerWidth - this.window.offsetWidth;
+                    const maxY = window.innerHeight - this.window.offsetHeight;
+                    
+                    this.x = Math.max(0, Math.min(this.x, maxX));
+                    this.y = Math.max(0, Math.min(this.y, maxY));
+                    
+                    this.window.style.left = `${this.x}px`;
+                    this.window.style.top = `${this.y}px`;
+                });
+                
+                // 结束拖动
+                document.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                });
+                
+                // 关闭按钮事件
+                closeBtn.addEventListener('click', () => {
+                    this.hide();
+                });
+                
+                // 遮罩层点击关闭
+                this.mask.addEventListener('click', () => {
+                    this.hide();
+                });
+                
+                // 窗口内点击阻止冒泡到遮罩层
+                this.window.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                
+                // 绑定设置项事件
+                this.bindSettingEvents();
+            }
+            
+            // 绑定设置项事件
+            bindSettingEvents() {
+                // 颜色选择器
+                const colorInput = this.window.querySelector('#canvas-bg-color');
+                const colorPreview = this.window.querySelector('#color-preview');
+                
+                colorInput.addEventListener('input', (e) => {
+                    colorPreview.style.backgroundColor = e.target.value;
+                    // 这里可以触发应用设置的回调
+                    if (this.onSettingChange) {
+                        this.onSettingChange('canvas-bg-color', e.target.value);
+                    }
+                });
+                
+                // 线条宽度滑块
+                const lineWidthInput = this.window.querySelector('#line-width');
+                const lineWidthValue = this.window.querySelector('#line-width-value');
+                
+                lineWidthInput.addEventListener('input', (e) => {
+                    lineWidthValue.textContent = e.target.value;
+                    if (this.onSettingChange) {
+                        this.onSettingChange('line-width', e.target.value);
+                    }
+                });
+                
+                // 绘制模式选择
+                const drawModeSelect = this.window.querySelector('#draw-mode');
+                drawModeSelect.addEventListener('change', (e) => {
+                    if (this.onSettingChange) {
+                        this.onSettingChange('draw-mode', e.target.value);
+                    }
+                });
+                
+                // 网格对齐复选框
+                const gridSnapCheckbox = this.window.querySelector('#grid-snap');
+                gridSnapCheckbox.addEventListener('change', (e) => {
+                    if (this.onSettingChange) {
+                        this.onSettingChange('grid-snap', e.target.checked);
+                    }
+                });
+                
+                // 自动保存复选框
+                const autoSaveCheckbox = this.window.querySelector('#auto-save');
+                autoSaveCheckbox.addEventListener('change', (e) => {
+                    if (this.onSettingChange) {
+                        this.onSettingChange('auto-save', e.target.checked);
+                    }
+                });
+                
+                // 重置设置按钮
+                const resetBtn = this.window.querySelector('#reset-settings');
+                resetBtn.addEventListener('click', () => {
+                    this.resetSettings();
+                });
+            }
+            
+            // 重置设置
+            resetSettings() {
+                const colorInput = this.window.querySelector('#canvas-bg-color');
+                const colorPreview = this.window.querySelector('#color-preview');
+                const lineWidthInput = this.window.querySelector('#line-width');
+                const lineWidthValue = this.window.querySelector('#line-width-value');
+                const drawModeSelect = this.window.querySelector('#draw-mode');
+                const gridSnapCheckbox = this.window.querySelector('#grid-snap');
+                const autoSaveCheckbox = this.window.querySelector('#auto-save');
+                
+                colorInput.value = '#ffffff';
+                colorPreview.style.backgroundColor = '#ffffff';
+                lineWidthInput.value = 2;
+                lineWidthValue.textContent = '2';
+                drawModeSelect.value = 'rectangle';
+                gridSnapCheckbox.checked = false;
+                autoSaveCheckbox.checked = false;
+                
+                // 触发所有设置变更事件
+                if (this.onSettingChange) {
+                    this.onSettingChange('canvas-bg-color', '#ffffff');
+                    this.onSettingChange('line-width', '2');
+                    this.onSettingChange('draw-mode', 'rectangle');
+                    this.onSettingChange('grid-snap', false);
+                    this.onSettingChange('auto-save', false);
+                }
+            }
+            
+            // 显示窗口
+            show() {
+                this.window.style.display = 'block';
+                this.mask.style.display = 'block';
+                this.isVisible = true;
+            }
+            
+            // 隐藏窗口
+            hide() {
+                this.window.style.display = 'none';
+                this.mask.style.display = 'none';
+                this.isVisible = false;
+            }
+            
+            // 切换窗口显示/隐藏
+            toggle() {
+                if (this.isVisible) {
+                    this.hide();
+                } else {
+                    this.show();
+                }
+            }
+            
+            // 设置回调函数，当设置项改变时触发
+            onSettingChange(settingName, value) {
+                // 可以在外部重写此方法
+                console.log(`设置项 ${settingName} 已更改为: ${value}`);
+            }
+        }
+
+        class CApp {
+            constructor() {
+                // 初始化界面
+                this.initLayout();
+                // 创建可移动设置窗口
+                this.createMovableWindow();
+                // 绑定事件
+                this.bindEvents();
+            }
+
+            // 初始化布局结构
+            initLayout() {
+                // 1. 创建顶部工具条
+                const toolbar = document.createElement('div');
+                toolbar.style.cssText = `
+                    height: 50px;
+                    background-color: #2c3e50;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    padding: 0 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 100;
+                `;
+                toolbar.innerHTML = `
+                    <h3 style="margin-right: 20px;">应用工具条</h3>
+                    <button style="padding: 6px 12px; margin-right: 10px; border: none; border-radius: 4px; cursor: pointer;">新建</button>
+                    <button style="padding: 6px 12px; margin-right: 10px; border: none; border-radius: 4px; cursor: pointer;">保存</button>
+                    <button style="padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer;" id="id_4_btn_set_wnd">设置</button>
+                `;
+
+                // 2. 创建底部状态栏
+                const statusBar = document.createElement('div');
+                statusBar.style.cssText = `
+                    height: 30px;
+                    background-color: #34495e;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    padding: 0 20px;
+                    font-size: 12px;
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 100;
+                `;
+                statusBar.innerHTML = `<span id="status-text">就绪</span>`;
+
+                // 3. 创建中间画布区域
+                const canvasContainer = document.createElement('div');
+                canvasContainer.style.cssText = `
+                    position: fixed;
+                    top: 50px;
+                    bottom: 30px;
+                    left: 0;
+                    right: 0;
+                    background-color: #ecf0f1;
+                    overflow: auto; /* 画布内容超出时可滚动 */
+                `;
+
+                // 创建画布元素
+                const canvas = document.createElement('canvas');
+                canvas.id = 'main-canvas';
+                canvas.style.cssText = `
+                    display: block;
+                    margin: 20px auto;
+                    background-color: white;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                `;
+                // 设置画布默认尺寸
+                canvas.width = 800;
+                canvas.height = 500;
+
+                // 组装DOM结构
+                canvasContainer.appendChild(canvas);
+                document.body.appendChild(toolbar);
+                document.body.appendChild(canvasContainer);
+                document.body.appendChild(statusBar);
+
+                // 保存核心元素引用
+                this.canvas = canvas;
+                this.statusText = document.getElementById('status-text');
+                this.ctx = canvas.getContext('2d');
+
+                // 初始化画布示例内容
+                this.initCanvasContent();
+            }
+            
+            // 创建可移动设置窗口
+            createMovableWindow() {
+                this.settingWindow = new CMovableWnd({
+                    id: 'setting-window',
+                    title: '应用设置',
+                    width: 400,
+                    height: 350,
+                    x: 100,
+                    y: 100
+                });
+                
+                // 重写设置变更回调
+                this.settingWindow.onSettingChange = (settingName, value) => {
+                    this.handleSettingChange(settingName, value);
+                };
+            }
+
+            // 初始化画布示例内容
+            initCanvasContent() {
+                this.ctx.fillStyle = '#3498db';
+                this.ctx.fillRect(50, 50, 200, 100);
+                this.ctx.fillStyle = '#2ecc71';
+                this.ctx.beginPath();
+                this.ctx.arc(400, 100, 50, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = '20px Arial';
+                this.ctx.fillText('画布示例内容', 50, 200);
+            }
+
+            // 绑定事件
+            bindEvents() {
+                // 画布点击事件
+                this.canvas.addEventListener('click', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    this.statusText.textContent = `画布点击位置: X=${x.toFixed(0)}, Y=${y.toFixed(0)}`;
+                    
+                    // 点击时在画布绘制标记
+                    this.ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, 10, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+
+                // 窗口大小变化事件
+                window.addEventListener('resize', () => {
+                    this.statusText.textContent = '窗口尺寸已变化 | 就绪';
+                });
+                
+                // 设置按钮点击事件
+                const setBtn = document.getElementById('id_4_btn_set_wnd');
+                setBtn.addEventListener('click', () => {
+                    this.settingWindow.toggle();
+                    this.statusText.textContent = this.settingWindow.isVisible ? 
+                        '设置窗口已打开' : '设置窗口已关闭';
+                });
+                
+                // 工具条其他按钮事件
+                const newBtn = toolbar.querySelector('button:nth-child(2)');
+                const saveBtn = toolbar.querySelector('button:nth-child(3)');
+                
+                newBtn.addEventListener('click', () => {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.statusText.textContent = '画布已清空';
+                });
+                
+                saveBtn.addEventListener('click', () => {
+                    // 模拟保存操作
+                    const link = document.createElement('a');
+                    link.download = 'canvas-image.png';
+                    link.href = this.canvas.toDataURL();
+                    link.click();
+                    this.statusText.textContent = '画布已保存为图片';
+                });
+            }
+            
+            // 处理设置变更
+            handleSettingChange(settingName, value) {
+                this.statusText.textContent = `设置已更新: ${settingName} = ${value}`;
+                
+                switch(settingName) {
+                    case 'canvas-bg-color':
+                        this.canvas.style.backgroundColor = value;
+                        break;
+                    case 'line-width':
+                        this.ctx.lineWidth = parseInt(value);
+                        break;
+                    case 'draw-mode':
+                        this.statusText.textContent = `绘制模式已更改为: ${value}`;
+                        break;
+                    case 'grid-snap':
+                        this.statusText.textContent = `网格对齐: ${value ? '启用' : '禁用'}`;
+                        break;
+                    case 'auto-save':
+                        this.statusText.textContent = `自动保存: ${value ? '启用' : '禁用'}`;
+                        break;
+                }
+            }
+        }
+
+        // 初始化应用
+        const oApp = new CApp();
+    </script>
+</body>
+</html>
+<!--
+let id_4_btn_set_wnd can toggle a setting window, the window is movable.
+create a new class CMovableWnd to do it.
+-->
