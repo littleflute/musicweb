@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas应用</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .toolbar {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .toolbar button {
+            padding: 8px 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .toolbar button:hover {
+            background-color: #2980b9;
+        }
+        .toolbar input[type="color"] {
+            width: 40px;
+            height: 30px;
+            border: none;
+            cursor: pointer;
+        }
+        .toolbar .tool-separator {
+            width: 1px;
+            height: 20px;
+            background-color: #7f8c8d;
+            margin: 0 10px;
+        }
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        #mainCanvas {
+            display: block;
+            background-color: #ecf0f1;
+        }
+        .status-bar {
+            background-color: #34495e;
+            color: #bdc3c7;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            border-top: 1px solid #2c3e50;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar" id="toolbar">
+        <button id="btnDraw">绘制</button>
+        <button id="btnClear">清空</button>
+        <div class="tool-separator"></div>
+        <label>颜色: <input type="color" id="colorPicker" value="#e74c3c"></label>
+        <label>线宽: <input type="range" id="lineWidth" min="1" max="20" value="3"></label>
+        <div class="tool-separator"></div>
+        <span id="toolInfo">工具: 画笔</span>
+    </div>
+    <div class="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+    <div class="status-bar" id="statusBar">
+        <div class="status-item">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span>状态: 就绪</span>
+        </div>
+        <div class="status-item">
+            <span>坐标: <span id="coords">0, 0</span></span>
+        </div>
+        <div class="status-item">
+            <span>画布尺寸: <span id="canvasSize">800x600</span></span>
+        </div>
+    </div>
+    <script>
+        class CApp {
+            constructor() {
+                this.canvas = document.getElementById('mainCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.toolbar = document.getElementById('toolbar');
+                this.statusBar = document.getElementById('statusBar');
+                this.isDrawing = false;
+                this.lastX = 0;
+                this.lastY = 0;
+                this.currentColor = '#e74c3c';
+                this.lineWidth = 3;
+                
+                this.initCanvas();
+                this.bindEvents();
+                this.updateStatus();
+            }
+            
+            initCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+            
+            resizeCanvas() {
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+                this.updateCanvasSizeStatus();
+            }
+            
+            bindEvents() {
+                this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+                this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+                this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+                this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+                
+                document.getElementById('btnDraw').addEventListener('click', () => this.setTool('draw'));
+                document.getElementById('btnClear').addEventListener('click', () => this.clearCanvas());
+                document.getElementById('colorPicker').addEventListener('change', (e) => {
+                    this.currentColor = e.target.value;
+                });
+                document.getElementById('lineWidth').addEventListener('input', (e) => {
+                    this.lineWidth = e.target.value;
+                });
+                
+                this.canvas.addEventListener('mousemove', (e) => this.updateCoordinates(e));
+            }
+            
+            startDrawing(e) {
+                this.isDrawing = true;
+                [this.lastX, this.lastY] = [e.offsetX, e.offsetY];
+                this.updateStatusIndicator('#e74c3c');
+            }
+            
+            draw(e) {
+                if (!this.isDrawing) return;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.lastX, this.lastY);
+                this.ctx.lineTo(e.offsetX, e.offsetY);
+                this.ctx.strokeStyle = this.currentColor;
+                this.ctx.lineWidth = this.lineWidth;
+                this.ctx.lineCap = 'round';
+                this.ctx.stroke();
+                [this.lastX, this.lastY] = [e.offsetX, e.offsetY];
+            }
+            
+            stopDrawing() {
+                this.isDrawing = false;
+                this.updateStatusIndicator('#2ecc71');
+            }
+            
+            clearCanvas() {
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.updateStatus('画布已清空');
+            }
+            
+            setTool(tool) {
+                const toolMap = { draw: '画笔', clear: '清空' };
+                document.getElementById('toolInfo').textContent = `工具: ${toolMap[tool] || tool}`;
+                this.updateStatus(`工具切换为: ${toolMap[tool] || tool}`);
+            }
+            
+            updateCoordinates(e) {
+                document.getElementById('coords').textContent = `${e.offsetX}, ${e.offsetY}`;
+            }
+            
+            updateCanvasSizeStatus() {
+                document.getElementById('canvasSize').textContent = `${this.canvas.width}x${this.canvas.height}`;
+            }
+            
+            updateStatusIndicator(color) {
+                document.getElementById('statusIndicator').style.backgroundColor = color;
+            }
+            
+            updateStatus(message) {
+                const statusEl = this.statusBar.querySelector('.status-item span');
+                if (statusEl) {
+                    statusEl.textContent = `状态: ${message}`;
+                }
+            }
+        }
+        
+        const oApp = new CApp();
+    </script>
+</body>
+</html>
