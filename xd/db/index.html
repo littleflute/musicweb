@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>应用界面 - 可移动设置窗口</title>
+    <title>应用界面 - 可移动设置窗口（支持触摸）</title>
     <style>
         /* 基础样式重置 */
         * {
@@ -45,6 +45,8 @@
             cursor: move;
             user-select: none;
             border-radius: 8px 8px 0 0;
+            -webkit-user-select: none; /* 防止移动端文本选择 */
+            touch-action: none; /* 防止触摸时滚动 */
         }
         
         .wnd-title {
@@ -118,6 +120,45 @@
             z-index: 999;
             display: none;
         }
+        
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .movable-wnd {
+                width: 90vw;
+                height: 60vh;
+                max-width: 400px;
+                max-height: 500px;
+                left: 5vw !important;
+                top: 20vh !important;
+            }
+            
+            .wnd-header {
+                height: 50px; /* 增加高度便于触摸 */
+            }
+            
+            .wnd-close-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 24px;
+            }
+            
+            .wnd-content {
+                padding: 15px;
+            }
+        }
+        
+        /* 防止按钮在移动端被误触 */
+        .wnd-close-btn:active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        #id_4_btn_set_wnd:active {
+            opacity: 0.8;
+        }
+        
+        button:active {
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -134,6 +175,9 @@
                 this.isVisible = false;
                 this.isDragging = false;
                 this.dragOffset = { x: 0, y: 0 };
+                
+                // 设备检测
+                this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
                 
                 // 创建窗口DOM
                 this.createWindow();
@@ -204,58 +248,90 @@
                 const header = this.window.querySelector('.wnd-header');
                 const closeBtn = this.window.querySelector('.wnd-close-btn');
                 
-                // 开始拖动
-                header.addEventListener('mousedown', (e) => {
-                    if (e.target === closeBtn) return;
-                    
-                    this.isDragging = true;
-                    const rect = this.window.getBoundingClientRect();
-                    this.dragOffset.x = e.clientX - rect.left;
-                    this.dragOffset.y = e.clientY - rect.top;
-                    
-                    e.preventDefault();
-                });
+                // 开始拖动（鼠标和触摸）
+                header.addEventListener('mousedown', (e) => this.startDrag(e));
+                header.addEventListener('touchstart', (e) => this.startDrag(e, true));
                 
-                // 拖动中
-                document.addEventListener('mousemove', (e) => {
-                    if (!this.isDragging) return;
-                    
-                    this.x = e.clientX - this.dragOffset.x;
-                    this.y = e.clientY - this.dragOffset.y;
-                    
-                    // 限制窗口在可视区域内
-                    const maxX = window.innerWidth - this.window.offsetWidth;
-                    const maxY = window.innerHeight - this.window.offsetHeight;
-                    
-                    this.x = Math.max(0, Math.min(this.x, maxX));
-                    this.y = Math.max(0, Math.min(this.y, maxY));
-                    
-                    this.window.style.left = `${this.x}px`;
-                    this.window.style.top = `${this.y}px`;
-                });
+                // 拖动中（鼠标和触摸）
+                document.addEventListener('mousemove', (e) => this.handleDrag(e));
+                document.addEventListener('touchmove', (e) => this.handleDrag(e, true));
                 
-                // 结束拖动
-                document.addEventListener('mouseup', () => {
-                    this.isDragging = false;
-                });
+                // 结束拖动（鼠标和触摸）
+                document.addEventListener('mouseup', () => this.endDrag());
+                document.addEventListener('touchend', () => this.endDrag());
+                
+                // 触摸取消
+                document.addEventListener('touchcancel', () => this.endDrag());
                 
                 // 关闭按钮事件
-                closeBtn.addEventListener('click', () => {
+                closeBtn.addEventListener('click', () => this.hide());
+                closeBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
                     this.hide();
                 });
                 
                 // 遮罩层点击关闭
-                this.mask.addEventListener('click', () => {
+                this.mask.addEventListener('click', () => this.hide());
+                this.mask.addEventListener('touchend', (e) => {
+                    e.preventDefault();
                     this.hide();
                 });
                 
                 // 窗口内点击阻止冒泡到遮罩层
-                this.window.addEventListener('click', (e) => {
+                this.window.addEventListener('click', (e) => e.stopPropagation());
+                this.window.addEventListener('touchend', (e) => {
                     e.stopPropagation();
                 });
                 
                 // 绑定设置项事件
                 this.bindSettingEvents();
+            }
+            
+            // 开始拖动
+            startDrag(e, isTouch = false) {
+                if (e.target.classList.contains('wnd-close-btn')) return;
+                
+                this.isDragging = true;
+                const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+                
+                const rect = this.window.getBoundingClientRect();
+                this.dragOffset.x = clientX - rect.left;
+                this.dragOffset.y = clientY - rect.top;
+                
+                if (isTouch) {
+                    e.preventDefault(); // 防止触摸时滚动页面
+                }
+            }
+            
+            // 处理拖动
+            handleDrag(e, isTouch = false) {
+                if (!this.isDragging) return;
+                
+                const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+                
+                this.x = clientX - this.dragOffset.x;
+                this.y = clientY - this.dragOffset.y;
+                
+                // 限制窗口在可视区域内
+                const maxX = window.innerWidth - this.window.offsetWidth;
+                const maxY = window.innerHeight - this.window.offsetHeight;
+                
+                this.x = Math.max(0, Math.min(this.x, maxX));
+                this.y = Math.max(0, Math.min(this.y, maxY));
+                
+                this.window.style.left = `${this.x}px`;
+                this.window.style.top = `${this.y}px`;
+                
+                if (isTouch) {
+                    e.preventDefault(); // 防止触摸时滚动页面
+                }
+            }
+            
+            // 结束拖动
+            endDrag() {
+                this.isDragging = false;
             }
             
             // 绑定设置项事件
@@ -266,7 +342,6 @@
                 
                 colorInput.addEventListener('input', (e) => {
                     colorPreview.style.backgroundColor = e.target.value;
-                    // 这里可以触发应用设置的回调
                     if (this.onSettingChange) {
                         this.onSettingChange('canvas-bg-color', e.target.value);
                     }
@@ -309,7 +384,9 @@
                 
                 // 重置设置按钮
                 const resetBtn = this.window.querySelector('#reset-settings');
-                resetBtn.addEventListener('click', () => {
+                resetBtn.addEventListener('click', () => this.resetSettings());
+                resetBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
                     this.resetSettings();
                 });
             }
@@ -469,7 +546,7 @@
             createMovableWindow() {
                 this.settingWindow = new CMovableWnd({
                     id: 'setting-window',
-                    title: '应用设置',
+                    title: '应用设置（支持触摸拖动）',
                     width: 400,
                     height: 350,
                     x: 100,
@@ -510,6 +587,22 @@
                     this.ctx.arc(x, y, 10, 0, Math.PI * 2);
                     this.ctx.fill();
                 });
+                
+                // 画布触摸事件
+                this.canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    const rect = this.canvas.getBoundingClientRect();
+                    const touch = e.changedTouches[0];
+                    const x = touch.clientX - rect.left;
+                    const y = touch.clientY - rect.top;
+                    this.statusText.textContent = `画布触摸位置: X=${x.toFixed(0)}, Y=${y.toFixed(0)}`;
+                    
+                    // 触摸时在画布绘制标记
+                    this.ctx.fillStyle = 'rgba(52, 152, 219, 0.5)';
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, 10, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
 
                 // 窗口大小变化事件
                 window.addEventListener('resize', () => {
@@ -524,7 +617,16 @@
                         '设置窗口已打开' : '设置窗口已关闭';
                 });
                 
+                // 设置按钮触摸事件
+                setBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.settingWindow.toggle();
+                    this.statusText.textContent = this.settingWindow.isVisible ? 
+                        '设置窗口已打开' : '设置窗口已关闭';
+                });
+                
                 // 工具条其他按钮事件
+                const toolbar = document.querySelector('div');
                 const newBtn = toolbar.querySelector('button:nth-child(2)');
                 const saveBtn = toolbar.querySelector('button:nth-child(3)');
                 
@@ -533,14 +635,30 @@
                     this.statusText.textContent = '画布已清空';
                 });
                 
-                saveBtn.addEventListener('click', () => {
-                    // 模拟保存操作
-                    const link = document.createElement('a');
-                    link.download = 'canvas-image.png';
-                    link.href = this.canvas.toDataURL();
-                    link.click();
-                    this.statusText.textContent = '画布已保存为图片';
+                newBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.statusText.textContent = '画布已清空';
                 });
+                
+                saveBtn.addEventListener('click', () => {
+                    this.saveCanvas();
+                });
+                
+                saveBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.saveCanvas();
+                });
+            }
+            
+            // 保存画布
+            saveCanvas() {
+                // 模拟保存操作
+                const link = document.createElement('a');
+                link.download = 'canvas-image.png';
+                link.href = this.canvas.toDataURL();
+                link.click();
+                this.statusText.textContent = '画布已保存为图片';
             }
             
             // 处理设置变更
@@ -568,11 +686,13 @@
         }
 
         // 初始化应用
-        const oApp = new CApp();
+        document.addEventListener('DOMContentLoaded', () => {
+            const oApp = new CApp();
+        });
     </script>
 </body>
 </html>
+
 <!--
-let id_4_btn_set_wnd can toggle a setting window, the window is movable.
-create a new class CMovableWnd to do it.
+setting window can't move when running on cell phone.
 -->
