@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Issues 管理面板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        // 配置 Tailwind 自定义样式
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#6B7280',
+                        success: '#00B42A',
+                        warning: '#FF7D00',
+                        danger: '#F53F3F',
+                        light: '#F9FAFB',
+                        dark: '#1F2937'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .btn-active {
+                @apply bg-primary text-white border-primary;
+            }
+            .toolbar-btn {
+                @apply w-full py-2 px-3 mb-2 rounded-lg border border-gray-200 
+                       hover:border-primary hover:bg-primary/5 transition-all 
+                       text-left text-sm flex items-center gap-2;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col h-screen overflow-hidden">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between z-10">
+        <div class="flex items-center gap-2">
+            <i class="fa fa-github text-xl text-dark"></i>
+            <h1 class="text-lg font-semibold">GitHub Issues 管理</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-2 rounded hover:bg-gray-100">
+                <i class="fa fa-refresh"></i>
+            </button>
+            <button class="p-2 rounded hover:bg-gray-100">
+                <i class="fa fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="flex flex-1 overflow-hidden">
+        <!-- 左侧 Issues 工具栏 -->
+        <aside class="w-1/3 bg-white border-r border-gray-200 overflow-y-auto scrollbar-hide p-2">
+            <div class="mb-2 flex items-center justify-between">
+                <h2 class="text-sm font-medium text-gray-700">Issues 列表</h2>
+                <span id="issues-count" class="text-xs bg-gray-100 px-2 py-1 rounded">0</span>
+            </div>
+            <div id="issues-container" class="space-y-1">
+                <!-- Issues 按钮将动态生成 -->
+                <div class="text-center text-gray-400 text-xs py-8">
+                    <i class="fa fa-spinner fa-spin mb-2"></i>
+                    <p>加载 Issues 中...</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中间画布区域 -->
+        <section class="flex-1 bg-gray-100 overflow-y-auto p-4">
+            <div id="canvas-content" class="bg-white rounded-lg p-4 shadow-sm h-full">
+                <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                    <i class="fa fa-issue-opened text-4xl mb-4"></i>
+                    <h3 class="text-lg font-medium">请选择左侧的 Issue</h3>
+                    <p class="text-sm mt-2">选择后将显示 Issue 详情和评论</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 右侧评论工具栏 -->
+        <aside class="w-1/3 bg-white border-l border-gray-200 overflow-y-auto scrollbar-hide p-2">
+            <div class="mb-2 flex items-center justify-between">
+                <h2 class="text-sm font-medium text-gray-700">评论列表</h2>
+                <span id="comments-count" class="text-xs bg-gray-100 px-2 py-1 rounded">0</span>
+            </div>
+            <div id="comments-container" class="space-y-1">
+                <!-- 评论按钮将动态生成 -->
+                <div class="text-center text-gray-400 text-xs py-8">
+                    <p>请先选择一个 Issue</p>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="bg-dark text-white py-2 px-4 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-3">
+            <span><i class="fa fa-server mr-1"></i> 仓库: musicweb</span>
+            <span id="status-indicator" class="flex items-center">
+                <i class="fa fa-circle text-green-500 mr-1"></i>
+                已连接
+            </span>
+        </div>
+        <div>
+            <span id="last-update">最后更新: --</span>
+        </div>
+    </footer>
+
+    <script>
+        // 扩展 GitHub API 类
+        class CGithubAPI {
+            constructor() {
+                this.currentRepo = 'musicweb';
+                this.owner = 'littleflute';
+                this.xdToken = "ghp_2BF" + "JztcBlHHOkBybs" + "UVJZGHQ4S" + "wvFR0poLqc";
+            }
+
+            // 私有 API 请求方法
+            async #apiRequest(method, endpoint, data) {
+                const url = `https://api.github.com/repos/${this.owner}/${this.currentRepo}/${endpoint}`;
+                const headers = {
+                    'Authorization': `token ${this.xdToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers,
+                        body: data ? JSON.stringify(data) : null
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    return await response.json();
+                } catch (error) {
+                    console.error('API 请求失败:', error);
+                    throw error;
+                }
+            }
+
+            // 获取所有 Issues
+            async getIssues(state = 'open') {
+                return this.#apiRequest('GET', `issues?state=${state}&per_page=100`);
+            }
+
+            // 获取指定 Issue 的详情
+            async getIssueDetails(issueNumber) {
+                return this.#apiRequest('GET', `issues/${issueNumber}`);
+            }
+
+            // 获取指定 Issue 的评论
+            async getIssueComments(issueNumber) {
+                return this.#apiRequest('GET', `issues/${issueNumber}/comments`);
+            }
+
+            // 获取仓库信息
+            async getRepoInfo() {
+                return this.#apiRequest('GET', '');
+            }
+        }
+
+        // 页面逻辑
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 初始化 API 实例
+            const githubAPI = new CGithubAPI();
+            
+            // 获取 DOM 元素
+            const issuesContainer = document.getElementById('issues-container');
+            const commentsContainer = document.getElementById('comments-container');
+            const canvasContent = document.getElementById('canvas-content');
+            const issuesCount = document.getElementById('issues-count');
+            const commentsCount = document.getElementById('comments-count');
+            const statusIndicator = document.getElementById('status-indicator');
+            const lastUpdate = document.getElementById('last-update');
+
+            // 更新最后更新时间
+            const updateLastUpdate = () => {
+                const now = new Date();
+                lastUpdate.textContent = `最后更新: ${now.toLocaleTimeString()}`;
+            };
+
+            // 加载 Issues 列表
+            async function loadIssues() {
+                try {
+                    issuesContainer.innerHTML = '<div class="text-center text-gray-400 text-xs py-8"><i class="fa fa-spinner fa-spin mb-2"></i><p>加载 Issues 中...</p></div>';
+                    
+                    const issues = await githubAPI.getIssues();
+                    issuesCount.textContent = issues.length;
+                    
+                    if (issues.length === 0) {
+                        issuesContainer.innerHTML = '<div class="text-center text-gray-400 text-xs py-8"><i class="fa fa-info-circle mb-2"></i><p>暂无 Issues</p></div>';
+                        return;
+                    }
+
+                    // 生成 Issues 按钮
+                    issuesContainer.innerHTML = '';
+                    issues.forEach(issue => {
+                        const issueBtn = document.createElement('button');
+                        issueBtn.className = 'toolbar-btn';
+                        issueBtn.innerHTML = `
+                            <span class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs">${issue.number}</span>
+                            <span class="truncate">${issue.title}</span>
+                        `;
+                        issueBtn.dataset.issueNumber = issue.number;
+                        issueBtn.dataset.issueTitle = issue.title;
+                        
+                        // 点击 Issue 按钮事件
+                        issueBtn.addEventListener('click', async () => {
+                            // 移除其他按钮的激活状态
+                            document.querySelectorAll('.toolbar-btn').forEach(btn => {
+                                btn.classList.remove('btn-active');
+                            });
+                            // 添加当前按钮激活状态
+                            issueBtn.classList.add('btn-active');
+                            
+                            // 加载 Issue 详情和评论
+                            await loadIssueDetails(issue.number);
+                            await loadIssueComments(issue.number);
+                            
+                            // 更新最后更新时间
+                            updateLastUpdate();
+                        });
+                        
+                        issuesContainer.appendChild(issueBtn);
+                    });
+
+                    statusIndicator.innerHTML = '<i class="fa fa-circle text-green-500 mr-1"></i> 已连接';
+                } catch (error) {
+                    console.error('加载 Issues 失败:', error);
+                    issuesContainer.innerHTML = `<div class="text-center text-red-400 text-xs py-8"><i class="fa fa-exclamation-circle mb-2"></i><p>加载失败: ${error.message}</p></div>`;
+                    statusIndicator.innerHTML = '<i class="fa fa-circle text-red-500 mr-1"></i> 连接失败';
+                }
+            }
+
+            // 加载 Issue 详情
+            async function loadIssueDetails(issueNumber) {
+                try {
+                    const issue = await githubAPI.getIssueDetails(issueNumber);
+                    
+                    // 格式化日期
+                    const createdDate = new Date(issue.created_at).toLocaleString();
+                    const updatedDate = new Date(issue.updated_at).toLocaleString();
+
+                    // 渲染 Issue 详情
+                    canvasContent.innerHTML = `
+                        <div class="mb-4 border-b pb-3">
+                            <h2 class="text-xl font-bold mb-2">${issue.title}</h2>
+                            <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+                                <span><i class="fa fa-user mr-1"></i>${issue.user.login}</span>
+                                <span><i class="fa fa-calendar mr-1"></i>创建于: ${createdDate}</span>
+                                <span><i class="fa fa-refresh mr-1"></i>更新于: ${updatedDate}</span>
+                                <span class="px-2 py-0.5 rounded bg-${issue.state === 'open' ? 'success' : 'danger'}/10 text-${issue.state === 'open' ? 'success' : 'danger'}">
+                                    ${issue.state === 'open' ? '开启' : '关闭'}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="prose prose-sm max-w-none">
+                            ${issue.body || '<p class="text-gray-400 text-sm">无描述内容</p>'}
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('加载 Issue 详情失败:', error);
+                    canvasContent.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-full text-red-400">
+                            <i class="fa fa-exclamation-triangle text-4xl mb-4"></i>
+                            <h3 class="text-lg font-medium">加载失败</h3>
+                            <p class="text-sm mt-2">${error.message}</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // 加载 Issue 评论
+            async function loadIssueComments(issueNumber) {
+                try {
+                    commentsContainer.innerHTML = '<div class="text-center text-gray-400 text-xs py-8"><i class="fa fa-spinner fa-spin mb-2"></i><p>加载评论中...</p></div>';
+                    
+                    const comments = await githubAPI.getIssueComments(issueNumber);
+                    commentsCount.textContent = comments.length;
+                    
+                    if (comments.length === 0) {
+                        commentsContainer.innerHTML = '<div class="text-center text-gray-400 text-xs py-8"><i class="fa fa-comment-o mb-2"></i><p>暂无评论</p></div>';
+                        return;
+                    }
+
+                    // 生成评论按钮
+                    commentsContainer.innerHTML = '';
+                    comments.forEach((comment, index) => {
+                        const commentBtn = document.createElement('button');
+                        commentBtn.className = 'toolbar-btn';
+                        // 截取评论前50个字符
+                        const shortBody = comment.body.length > 50 
+                            ? comment.body.substring(0, 50) + '...' 
+                            : comment.body;
+                        
+                        commentBtn.innerHTML = `
+                            <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">${index + 1}</span>
+                            <span class="truncate">${shortBody.replace(/\n/g, ' ')}</span>
+                        `;
+                        commentBtn.dataset.commentId = comment.id;
+                        
+                        // 点击评论按钮事件
+                        commentBtn.addEventListener('click', () => {
+                            // 移除其他按钮的激活状态
+                            commentsContainer.querySelectorAll('.toolbar-btn').forEach(btn => {
+                                btn.classList.remove('btn-active');
+                            });
+                            // 添加当前按钮激活状态
+                            commentBtn.classList.add('btn-active');
+                            
+                            // 在画布中显示完整评论
+                            const commentHTML = `
+                                <div class="mb-4 border-b pb-3">
+                                    <h3 class="text-lg font-semibold">评论 #${index + 1}</h3>
+                                    <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+                                        <span><i class="fa fa-user mr-1"></i>${comment.user.login}</span>
+                                        <span><i class="fa fa-calendar mr-1"></i>${new Date(comment.created_at).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                <div class="prose prose-sm max-w-none bg-gray-50 p-3 rounded">
+                                    ${comment.body || '<p class="text-gray-400 text-sm">无评论内容</p>'}
+                                </div>
+                            `;
+                            
+                            // 保留 Issue 标题，添加评论内容
+                            const issueTitle = canvasContent.querySelector('h2')?.textContent || '';
+                            canvasContent.innerHTML = `
+                                <div class="mb-4 border-b pb-3">
+                                    <h2 class="text-xl font-bold mb-2">${issueTitle}</h2>
+                                    <p class="text-sm text-gray-500">查看评论 #${index + 1}</p>
+                                </div>
+                                ${commentHTML}
+                            `;
+                        });
+                        
+                        commentsContainer.appendChild(commentBtn);
+                    });
+                } catch (error) {
+                    console.error('加载评论失败:', error);
+                    commentsContainer.innerHTML = `<div class="text-center text-red-400 text-xs py-8"><i class="fa fa-exclamation-circle mb-2"></i><p>加载失败: ${error.message}</p></div>`;
+                }
+            }
+
+            // 初始化加载
+            loadIssues();
+            
+            // 刷新按钮事件
+            document.querySelector('.fa-refresh').parentElement.addEventListener('click', () => {
+                loadIssues();
+                updateLastUpdate();
+            });
+
+            // 处理窗口大小变化，优化移动端体验
+            window.addEventListener('resize', () => {
+                const asideElements = document.querySelectorAll('aside');
+                if (window.innerWidth < 768) {
+                    asideElements.forEach(aside => {
+                        aside.style.width = '40%';
+                    });
+                } else {
+                    asideElements.forEach(aside => {
+                        aside.style.width = '30%';
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

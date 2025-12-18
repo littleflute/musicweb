@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GitHub Issues 管理器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 布局容器 */
+        .container {
+            display: grid;
+            grid-template-areas: 
+                "header header header"
+                "left-toolbar canvas right-toolbar"
+                "status status status";
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+            gap: 1px;
+            background-color: #21262d;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-areas: 
+                    "header"
+                    "left-toolbar"
+                    "canvas"
+                    "right-toolbar"
+                    "status";
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 200px 1fr 200px auto;
+            }
+            
+            .left-toolbar, .right-toolbar {
+                max-height: 200px;
+                overflow-y: auto;
+            }
+        }
+        
+        /* 顶部导航 */
+        .header {
+            grid-area: header;
+            background-color: #161b22;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #30363d;
+            flex-wrap: wrap;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo i {
+            color: #58a6ff;
+            font-size: 24px;
+        }
+        
+        .logo h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f0f6fc;
+        }
+        
+        .nav-menu {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-btn {
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-btn:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+        
+        .repo-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .repo-selector input {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 10px;
+            border-radius: 6px;
+            width: 150px;
+        }
+        
+        /* 工具栏 */
+        .left-toolbar {
+            grid-area: left-toolbar;
+            background-color: #161b22;
+            padding: 15px;
+            border-right: 1px solid #30363d;
+            overflow-y: auto;
+        }
+        
+        .right-toolbar {
+            grid-area: right-toolbar;
+            background-color: #161b22;
+            padding: 15px;
+            border-left: 1px solid #30363d;
+            overflow-y: auto;
+        }
+        
+        .toolbar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .toolbar-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f0f6fc;
+        }
+        
+        .toolbar-header span {
+            background-color: #238636;
+            color: white;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        
+        .issues-list, .comments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .issue-btn, .comment-btn {
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .issue-btn:hover, .comment-btn:hover {
+            background-color: #30363d;
+            border-color: #58a6ff;
+        }
+        
+        .issue-btn.active {
+            background-color: #1c2b41;
+            border-color: #58a6ff;
+        }
+        
+        .issue-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #f0f6fc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .issue-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b949e;
+        }
+        
+        .comment-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b949e;
+        }
+        
+        .comment-preview {
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* 画布区域 */
+        .canvas {
+            grid-area: canvas;
+            background-color: #0d1117;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+        }
+        
+        .canvas-content {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .canvas-placeholder {
+            color: #8b949e;
+            margin-bottom: 30px;
+        }
+        
+        .canvas-placeholder i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #30363d;
+        }
+        
+        .issue-detail {
+            text-align: left;
+            background-color: #161b22;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            display: none;
+        }
+        
+        .issue-detail h2 {
+            color: #f0f6fc;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .issue-body {
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .issue-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .issue-tag {
+            background-color: #13233a;
+            color: #58a6ff;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        /* 状态栏 */
+        .status-bar {
+            grid-area: status;
+            background-color: #161b22;
+            padding: 8px 20px;
+            border-top: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #8b949e;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 加载指示器 */
+        .loader {
+            border: 3px solid #30363d;
+            border-top: 3px solid #58a6ff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0d1117;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #484f58;
+        }
+        
+        /* 工具提示 */
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #161b22;
+            color: #f0f6fc;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            border: 1px solid #30363d;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="logo">
+                <i class="fab fa-github"></i>
+                <h1>GitHub Issues 管理器</h1>
+            </div>
+            
+            <div class="nav-menu">
+                <button class="nav-btn tooltip" data-tooltip="刷新数据" id="refreshBtn">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+                <button class="nav-btn tooltip" data-tooltip="创建新Issue" id="newIssueBtn">
+                    <i class="fas fa-plus"></i> 新建
+                </button>
+                <button class="nav-btn tooltip" data-tooltip="设置" id="settingsBtn">
+                    <i class="fas fa-cog"></i> 设置
+                </button>
+            </div>
+            
+            <div class="repo-selector">
+                <input type="text" id="repoInput" value="musicweb" placeholder="输入仓库名">
+                <button class="nav-btn" id="loadRepoBtn">加载仓库</button>
+            </div>
+        </header>
+        
+        <!-- 左边工具栏 - Issues列表 -->
+        <aside class="left-toolbar">
+            <div class="toolbar-header">
+                <h3>Issues</h3>
+                <span id="issueCount">0</span>
+            </div>
+            <div class="issues-list" id="issuesList">
+                <div class="loader" id="issuesLoader"></div>
+            </div>
+        </aside>
+        
+        <!-- 中间画布 -->
+        <main class="canvas">
+            <div class="canvas-content">
+                <div class="canvas-placeholder" id="canvasPlaceholder">
+                    <i class="fas fa-code-branch"></i>
+                    <h3>选择 Issue 查看详情</h3>
+                    <p>点击左侧的 Issue 按钮以查看详细信息</p>
+                </div>
+                <div class="issue-detail" id="issueDetail">
+                    <!-- Issue详情会动态加载到这里 -->
+                </div>
+            </div>
+        </main>
+        
+        <!-- 右边工具栏 - 评论列表 -->
+        <aside class="right-toolbar">
+            <div class="toolbar-header">
+                <h3>评论</h3>
+                <span id="commentCount">0</span>
+            </div>
+            <div class="comments-list" id="commentsList">
+                <div id="commentsPlaceholder">选择 Issue 以查看评论</div>
+            </div>
+        </aside>
+        
+        <!-- 底部状态栏 -->
+        <footer class="status-bar">
+            <div class="status-item">
+                <i class="fas fa-database"></i>
+                <span>仓库: <strong id="currentRepo">musicweb</strong></span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-info-circle"></i>
+                <span>选中: <strong id="selectedIssue">无</strong></span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-clock"></i>
+                <span>最后更新: <strong id="lastUpdate">刚刚</strong></span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // 升级的CGithubAPI类
+        class CGithubAPI {
+            constructor() {
+                this.currentRepo = 'musicweb';
+                this.baseUrl = 'https://api.github.com';
+                // 注意：在实际应用中，token不应该硬编码在前端代码中
+                // 这里仅用于演示，实际应该使用后端代理或OAuth
+                this.token = "ghp_2BF" + "JztcBlHHOkBybs" + "UVJZGHQ4S" + "wvFR0poLqc";
+            }
+            
+            async #apiRequest(method, endpoint, data) {
+                const url = `${this.baseUrl}/repos/littleflute/${this.currentRepo}${endpoint}`;
+                const headers = {
+                    'Authorization': `token ${this.token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+
+                const options = {
+                    method,
+                    headers,
+                };
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                try {
+                    const response = await fetch(url, options);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    // 处理204 No Content响应
+                    if (response.status === 204) {
+                        return null;
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error('API请求失败:', error);
+                    throw error;
+                }
+            }
+            
+            // 获取仓库的issues列表
+            async getIssues(state = 'open', perPage = 100, page = 1) {
+                const endpoint = `/issues?state=${state}&per_page=${perPage}&page=${page}`;
+                return await this.#apiRequest('GET', endpoint);
+            }
+            
+            // 获取特定issue的评论
+            async getIssueComments(issueNumber, perPage = 100, page = 1) {
+                const endpoint = `/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`;
+                return await this.#apiRequest('GET', endpoint);
+            }
+            
+            // 获取特定issue的详情
+            async getIssue(issueNumber) {
+                const endpoint = `/issues/${issueNumber}`;
+                return await this.#apiRequest('GET', endpoint);
+            }
+            
+            // 更改当前仓库
+            changeRepo(repoName) {
+                this.currentRepo = repoName;
+                return repoName;
+            }
+            
+            // 获取当前仓库信息
+            async getRepoInfo() {
+                const endpoint = '';
+                return await this.#apiRequest('GET', endpoint);
+            }
+        }
+
+        // 创建API实例
+        const githubAPI = new CGithubAPI();
+        
+        // 状态管理
+        const state = {
+            currentRepo: 'musicweb',
+            selectedIssue: null,
+            issues: [],
+            comments: [],
+            lastUpdate: new Date()
+        };
+        
+        // DOM元素
+        const issuesList = document.getElementById('issuesList');
+        const commentsList = document.getElementById('commentsList');
+        const issueDetail = document.getElementById('issueDetail');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const issueCount = document.getElementById('issueCount');
+        const commentCount = document.getElementById('commentCount');
+        const currentRepoEl = document.getElementById('currentRepo');
+        const selectedIssueEl = document.getElementById('selectedIssue');
+        const lastUpdateEl = document.getElementById('lastUpdate');
+        const repoInput = document.getElementById('repoInput');
+        const loadRepoBtn = document.getElementById('loadRepoBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            loadIssues();
+            setupEventListeners();
+            updateStatusBar();
+        });
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            loadRepoBtn.addEventListener('click', loadNewRepo);
+            refreshBtn.addEventListener('click', loadIssues);
+            repoInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    loadNewRepo();
+                }
+            });
+            
+            // 模拟"新建Issue"按钮功能
+            document.getElementById('newIssueBtn').addEventListener('click', function() {
+                alert('创建新Issue功能需要在GitHub网站完成。');
+            });
+            
+            // 模拟"设置"按钮功能
+            document.getElementById('settingsBtn').addEventListener('click', function() {
+                alert('设置功能暂未实现。');
+            });
+        }
+        
+        // 加载新的仓库
+        async function loadNewRepo() {
+            const repoName = repoInput.value.trim();
+            if (!repoName) {
+                alert('请输入仓库名');
+                return;
+            }
+            
+            try {
+                githubAPI.changeRepo(repoName);
+                state.currentRepo = repoName;
+                state.selectedIssue = null;
+                
+                // 更新UI
+                currentRepoEl.textContent = repoName;
+                canvasPlaceholder.style.display = 'block';
+                issueDetail.style.display = 'none';
+                commentsList.innerHTML = '<div id="commentsPlaceholder">选择 Issue 以查看评论</div>';
+                
+                // 加载新仓库的issues
+                await loadIssues();
+                
+                updateStatusBar();
+            } catch (error) {
+                alert(`加载仓库失败: ${error.message}`);
+                console.error(error);
+            }
+        }
+        
+        // 加载issues列表
+        async function loadIssues() {
+            try {
+                // 显示加载指示器
+                issuesList.innerHTML = '<div class="loader" id="issuesLoader"></div>';
+                
+                // 从API获取issues
+                const issues = await githubAPI.getIssues();
+                state.issues = issues || [];
+                
+                // 更新UI
+                renderIssuesList();
+                updateStatusBar();
+                
+                // 如果有选中的issue，重新加载其评论
+                if (state.selectedIssue) {
+                    const issue = state.issues.find(i => i.number === state.selectedIssue.number);
+                    if (issue) {
+                        await loadComments(issue.number);
+                    } else {
+                        state.selectedIssue = null;
+                    }
+                }
+            } catch (error) {
+                console.error('加载issues失败:', error);
+                issuesList.innerHTML = `<div class="issue-btn" style="text-align:center; color:#f85149;">
+                    <p>加载失败: ${error.message}</p>
+                    <p>请检查仓库名和网络连接</p>
+                </div>`;
+            }
+        }
+        
+        // 渲染issues列表
+        function renderIssuesList() {
+            if (!state.issues || state.issues.length === 0) {
+                issuesList.innerHTML = '<div class="issue-btn" style="text-align:center;">该仓库没有issues</div>';
+                issueCount.textContent = '0';
+                return;
+            }
+            
+            issueCount.textContent = state.issues.length;
+            
+            const issuesHtml = state.issues.map(issue => {
+                const isActive = state.selectedIssue && state.selectedIssue.number === issue.number;
+                const activeClass = isActive ? 'active' : '';
+                const labels = issue.labels.map(label => label.name).join(', ');
+                
+                return `
+                    <button class="issue-btn ${activeClass}" data-id="${issue.number}">
+                        <div class="issue-title">#${issue.number}: ${issue.title}</div>
+                        <div class="issue-meta">
+                            <span>${issue.user.login}</span>
+                            <span>${formatDate(issue.created_at)}</span>
+                        </div>
+                        ${labels ? `<div class="issue-tags">${labels.split(',').slice(0,2).map(label => `<span class="issue-tag">${label.trim()}</span>`).join('')}</div>` : ''}
+                    </button>
+                `;
+            }).join('');
+            
+            issuesList.innerHTML = issuesHtml;
+            
+            // 为每个issue按钮添加点击事件
+            document.querySelectorAll('.issue-btn').forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    const issueId = parseInt(this.dataset.id);
+                    const issue = state.issues.find(i => i.number === issueId);
+                    
+                    if (issue) {
+                        // 更新选中状态
+                        document.querySelectorAll('.issue-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // 更新状态
+                        state.selectedIssue = issue;
+                        
+                        // 显示issue详情
+                        showIssueDetail(issue);
+                        
+                        // 加载评论
+                        await loadComments(issueId);
+                        
+                        updateStatusBar();
+                    }
+                });
+            });
+        }
+        
+        // 显示issue详情
+        function showIssueDetail(issue) {
+            canvasPlaceholder.style.display = 'none';
+            issueDetail.style.display = 'block';
+            
+            const labelsHtml = issue.labels.map(label => 
+                `<span class="issue-tag" style="background-color:#${label.color}20;color:#${label.color}">${label.name}</span>`
+            ).join('');
+            
+            issueDetail.innerHTML = `
+                <h2>#${issue.number}: ${issue.title}</h2>
+                <div class="issue-meta" style="margin-bottom:15px;">
+                    <span>创建者: <strong>${issue.user.login}</strong></span>
+                    <span>创建时间: ${formatDate(issue.created_at)}</span>
+                    <span>状态: <strong style="color:${issue.state === 'open' ? '#238636' : '#f85149'}">${issue.state === 'open' ? '开启' : '关闭'}</strong></span>
+                </div>
+                <div class="issue-body">
+                    ${issue.body ? issue.body.substring(0, 500) + (issue.body.length > 500 ? '...' : '') : '无描述内容'}
+                </div>
+                ${issue.labels.length > 0 ? `<div class="issue-tags">${labelsHtml}</div>` : ''}
+                <div style="margin-top:20px; text-align:center;">
+                    <button class="nav-btn" onclick="window.open('${issue.html_url}', '_blank')">
+                        <i class="fab fa-github"></i> 在GitHub中查看
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 加载评论
+        async function loadComments(issueNumber) {
+            try {
+                // 显示加载指示器
+                commentsList.innerHTML = '<div class="loader"></div>';
+                
+                // 从API获取评论
+                const comments = await githubAPI.getIssueComments(issueNumber);
+                state.comments = comments || [];
+                
+                // 更新UI
+                renderCommentsList();
+                updateStatusBar();
+            } catch (error) {
+                console.error('加载评论失败:', error);
+                commentsList.innerHTML = `<div class="comment-btn" style="text-align:center; color:#f85149;">
+                    <p>加载评论失败</p>
+                </div>`;
+            }
+        }
+        
+        // 渲染评论列表
+        function renderCommentsList() {
+            if (!state.comments || state.comments.length === 0) {
+                commentsList.innerHTML = '<div class="comment-btn" style="text-align:center;">此issue还没有评论</div>';
+                commentCount.textContent = '0';
+                return;
+            }
+            
+            commentCount.textContent = state.comments.length;
+            
+            const commentsHtml = state.comments.map(comment => {
+                return `
+                    <button class="comment-btn" data-id="${comment.id}">
+                        <div class="comment-preview">${comment.body.substring(0, 60)}${comment.body.length > 60 ? '...' : ''}</div>
+                        <div class="comment-meta">
+                            <span>${comment.user.login}</span>
+                            <span>${formatDate(comment.created_at)}</span>
+                        </div>
+                    </button>
+                `;
+            }).join('');
+            
+            commentsList.innerHTML = commentsHtml;
+            
+            // 为每个评论按钮添加点击事件
+            document.querySelectorAll('.comment-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const commentId = parseInt(this.dataset.id);
+                    const comment = state.comments.find(c => c.id === commentId);
+                    
+                    if (comment) {
+                        // 在画布区域显示完整评论
+                        showCommentDetail(comment);
+                    }
+                });
+            });
+        }
+        
+        // 显示评论详情
+        function showCommentDetail(comment) {
+            canvasPlaceholder.style.display = 'none';
+            issueDetail.style.display = 'block';
+            
+            issueDetail.innerHTML = `
+                <h2>评论详情</h2>
+                <div class="issue-meta" style="margin-bottom:15px;">
+                    <span>评论者: <strong>${comment.user.login}</strong></span>
+                    <span>评论时间: ${formatDate(comment.created_at)}</span>
+                </div>
+                <div class="issue-body">
+                    ${comment.body || '无评论内容'}
+                </div>
+                <div style="margin-top:20px; text-align:center;">
+                    <button class="nav-btn" onclick="window.open('${comment.html_url}', '_blank')">
+                        <i class="fab fa-github"></i> 在GitHub中查看
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 更新状态栏
+        function updateStatusBar() {
+            currentRepoEl.textContent = state.currentRepo;
+            
+            if (state.selectedIssue) {
+                selectedIssueEl.textContent = `#${state.selectedIssue.number}`;
+            } else {
+                selectedIssueEl.textContent = '无';
+            }
+            
+            state.lastUpdate = new Date();
+            lastUpdateEl.textContent = formatTime(state.lastUpdate);
+        }
+        
+        // 工具函数：格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) {
+                return '今天';
+            } else if (diffDays === 1) {
+                return '昨天';
+            } else if (diffDays < 7) {
+                return `${diffDays}天前`;
+            } else {
+                return date.toLocaleDateString('zh-CN');
+            }
+        }
+        
+        // 工具函数：格式化时间
+        function formatTime(date) {
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+        
+        // 模拟数据用于演示（如果API请求失败）
+        function createMockIssues() {
+            return [
+                {
+                    number: 1,
+                    title: "播放器无法播放某些格式的音频文件",
+                    user: { login: "user1" },
+                    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    state: "open",
+                    body: "当尝试播放FLAC格式的音频文件时，播放器没有任何反应，控制台也没有错误信息。",
+                    labels: [{name: "bug", color: "d73a4a"}, {name: "audio", color: "0075ca"}],
+                    html_url: "https://github.com/littleflute/musicweb/issues/1"
+                },
+                {
+                    number: 2,
+                    title: "添加黑暗模式支持",
+                    user: { login: "user2" },
+                    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                    state: "open",
+                    body: "希望为应用添加黑暗模式，以改善夜间使用体验。",
+                    labels: [{name: "enhancement", color: "a2eeef"}, {name: "UI", color: "7057ff"}],
+                    html_url: "https://github.com/littleflute/musicweb/issues/2"
+                },
+                {
+                    number: 3,
+                    title: "移动端布局优化",
+                    user: { login: "user3" },
+                    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                    state: "closed",
+                    body: "在手机上使用应用时，某些按钮太小，不易点击。",
+                    labels: [{name: "mobile", color: "e99695"}, {name: "UI", color: "7057ff"}],
+                    html_url: "https://github.com/littleflute/musicweb/issues/3"
+                },
+                {
+                    number: 4,
+                    title: "添加播放列表导入/导出功能",
+                    user: { login: "user4" },
+                    created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+                    state: "open",
+                    body: "希望可以从文件导入播放列表，也可以将播放列表导出为文件。",
+                    labels: [{name: "feature", color: "a2eeef"}],
+                    html_url: "https://github.com/littleflute/musicweb/issues/4"
+                },
+                {
+                    number: 5,
+                    title: "修复内存泄漏问题",
+                    user: { login: "user5" },
+                    created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    state: "closed",
+                    body: "长时间使用后，应用内存占用持续增加，疑似存在内存泄漏。",
+                    labels: [{name: "bug", color: "d73a4a"}, {name: "performance", color: "008672"}],
+                    html_url: "https://github.com/littleflute/musicweb/issues/5"
+                }
+            ];
+        }
+        
+        function createMockComments(issueNumber) {
+            const comments = {
+                1: [
+                    {
+                        id: 101,
+                        user: { login: "dev1" },
+                        created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+                        body: "这个问题可能是由于缺少FLAC解码器导致的。我们需要检查当前音频库是否支持FLAC格式。",
+                        html_url: "https://github.com/littleflute/musicweb/issues/1#issuecomment-101"
+                    },
+                    {
+                        id: 102,
+                        user: { login: "user1" },
+                        created_at: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toISOString(),
+                        body: "我测试了MP3和WAV格式，它们可以正常播放。只有FLAC有问题。",
+                        html_url: "https://github.com/littleflute/musicweb/issues/1#issuecomment-102"
+                    }
+                ],
+                2: [
+                    {
+                        id: 201,
+                        user: { login: "designer1" },
+                        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+                        body: "我已经设计了一套黑暗模式的配色方案，可以参考这个设计文档。",
+                        html_url: "https://github.com/littleflute/musicweb/issues/2#issuecomment-201"
+                    }
+                ],
+                4: [
+                    {
+                        id: 401,
+                        user: { login: "dev2" },
+                        created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+                        body: "这个功能很有用。我们可以支持M3U和PLS格式，它们是常见的播放列表格式。",
+                        html_url: "https://github.com/littleflute/musicweb/issues/4#issuecomment-401"
+                    }
+                ]
+            };
+            
+            return comments[issueNumber] || [];
+        }
+        
+        // 如果API不可用，使用模拟数据
+        window.addEventListener('error', function(e) {
+            if (e.message.includes('fetch')) {
+                console.log('使用模拟数据（API不可用）');
+                state.issues = createMockIssues();
+                renderIssuesList();
+                
+                // 覆盖loadComments函数以使用模拟数据
+                window.loadComments = function(issueNumber) {
+                    state.comments = createMockComments(issueNumber);
+                    renderCommentsList();
+                    updateStatusBar();
+                };
+            }
+        });
+    </script>
+</body>
+</html>
