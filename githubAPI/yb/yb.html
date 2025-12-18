@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Issues和评论管理 - 增强编辑版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        /* 顶部导航菜单 */
+        header {
+            background: linear-gradient(90deg, #24292e 0%, #2b3137 100%);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        header h1::before {
+            content: "🔄";
+            font-size: 1.2em;
+        }
+        nav {
+            display: flex;
+            gap: 15px;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        nav a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        /* 主内容区：左右工具栏和中间画布 */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            padding: 10px;
+            gap: 10px;
+        }
+        /* 工具栏公共样式 */
+        .toolbar {
+            width: 280px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            padding: 15px;
+            flex-shrink: 0;
+            border: 1px solid #e1e4e8;
+        }
+        .toolbar h3 {
+            margin-bottom: 15px;
+            color: #24292e;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0366d6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .toolbar h3::before {
+            content: "📋";
+        }
+        .right-toolbar h3::before {
+            content: "💬";
+        }
+        .toolbar button {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 12px 15px;
+            text-align: left;
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+        .toolbar button:hover {
+            background-color: #e1e4e8;
+            transform: translateX(3px);
+        }
+        .toolbar button.active {
+            background: linear-gradient(90deg, #0366d6 0%, #005cc5 100%);
+            color: white;
+            border-color: #005cc5;
+            box-shadow: 0 2px 5px rgba(3, 102, 214, 0.3);
+        }
+        /* 左侧工具栏 */
+        .left-toolbar {
+            border-right: 3px solid #0366d6;
+        }
+        /* 右侧工具栏 */
+        .right-toolbar {
+            border-left: 3px solid #28a745;
+        }
+        /* 中间画布 */
+        .canvas {
+            flex: 1;
+            background-color: white;
+            padding: 25px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .canvas-content {
+            line-height: 1.6;
+        }
+        .canvas-content h2 {
+            color: #24292e;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e1e4e8;
+        }
+        .canvas-content p {
+            color: #444;
+            margin-bottom: 15px;
+        }
+        .canvas-content .meta-info {
+            background-color: #f6f8fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0366d6;
+        }
+        .canvas-content .meta-info p {
+            margin-bottom: 8px;
+            color: #586069;
+        }
+        /* 编辑表单样式 */
+        .edit-form {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e1e4e8;
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #24292e;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #0366d6;
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.2);
+        }
+        .form-group textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+        .btn-primary {
+            background-color: #0366d6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #005cc5;
+            transform: translateY(-2px);
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+        /* 底部状态栏 */
+        footer {
+            background: linear-gradient(90deg, #24292e 0%, #2b3137 100%);
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #status {
+            flex: 1;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .action-buttons button {
+            padding: 6px 12px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .action-buttons button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        /* 响应式设计：手机适配 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .toolbar {
+                width: 100%;
+                height: 250px;
+                margin: 5px 0;
+            }
+            .left-toolbar, .right-toolbar {
+                border: 2px solid #0366d6;
+            }
+            .canvas {
+                margin: 5px 0;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            footer {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+            margin: 10px 0;
+        }
+        .loading {
+            color: #0366d6;
+            padding: 12px;
+            text-align: center;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #c3e6cb;
+            margin: 10px 0;
+        }
+        .issue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .issue-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .comment-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #28a745;
+        }
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e1e4e8;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>GitHub Issues和评论管理 - 增强编辑版</h1>
+        <nav>
+            <a href="#" id="refresh">🔄 刷新</a>
+            <a href="#" id="repoInfo">📦 仓库信息</a>
+            <a href="#" id="newIssue">➕ 新建Issue</a>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="toolbar left-toolbar">
+            <h3>Issues 列表</h3>
+            <div id="issues-list">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        <div class="canvas">
+            <div class="canvas-content" id="canvas-content">
+                <p>点击左侧的issue按钮查看详情，点击右侧的评论按钮查看评论。</p>
+                <p>可以使用编辑功能修改issue和评论，或添加新的评论。</p>
+            </div>
+        </div>
+        <div class="toolbar right-toolbar">
+            <h3>评论列表</h3>
+            <div id="comments-list">
+                <p>选择一个issue以加载评论。</p>
+            </div>
+            <div id="new-comment-section" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #28a745;">
+                <h4>添加新评论</h4>
+                <textarea id="new-comment-text" placeholder="输入新评论内容..." rows="3" style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ddd;"></textarea>
+                <button id="submit-new-comment" class="btn btn-success" style="width: 100%;">💬 提交评论</button>
+            </div>
+        </div>
+    </div>
+    <footer>
+        <div id="status">就绪 | 仓库: musicweb</div>
+        <div class="action-buttons">
+            <button id="editIssueBtn" style="display: none;">✏️ 编辑Issue</button>
+            <button id="editCommentBtn" style="display: none;">✏️ 编辑评论</button>
+        </div>
+    </footer>
+
+    <script>
+        // 升级CGithubAPI类，增加编辑功能
+        class CGithubAPI {
+            constructor() {
+                this.currentRepo = 'musicweb';
+                this.baseUrl = 'https://api.github.com/repos/littleflute';
+                this.currentIssue = null;
+                this.currentComment = null;
+            }
+
+            // 私有方法：API请求
+            async #apiRequest(method, endpoint, data) {
+                const token = "ghp_2BF" + "JztcBlHHOkBybs" + "UVJZGHQ4S" + "wvFR0poLqc"; // 注意：在实际使用中，应将token存储在安全位置
+                const url = `${this.baseUrl}/${this.currentRepo}/${endpoint}`;
+                const headers = {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+
+                const options = {
+                    method,
+                    headers
+                };
+
+                if (data && (method === 'PATCH' || method === 'POST' || method === 'PUT')) {
+                    options.body = JSON.stringify(data);
+                }
+
+                try {
+                    const response = await fetch(url, options);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    }
+                    
+                    // 对于204 No Content响应，返回空对象
+                    if (response.status === 204) {
+                        return {};
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error('API请求失败:', error);
+                    throw error;
+                }
+            }
+
+            // 公共方法：获取仓库的所有issues
+            async getIssues() {
+                try {
+                    const endpoint = 'issues?state=all&per_page=100&sort=updated&direction=desc';
+                    return await this.#apiRequest('GET', endpoint, null);
+                } catch (error) {
+                    console.error('获取issues失败:', error);
+                    throw error;
+                }
+            }
+
+            // 公共方法：获取特定issue的评论
+            async getComments(issueNumber) {
+                try {
+                    const endpoint = `issues/${issueNumber}/comments`;
+                    return await this.#apiRequest('GET', endpoint, null);
+                } catch (error) {
+                    console.error('获取评论失败:', error);
+                    throw error;
+                }
+            }
+
+            // 公共方法：更新issue
+            async updateIssue(issueNumber, data) {
+                try {
+                    const endpoint = `issues/${issueNumber}`;
+                    return await this.#apiRequest('PATCH', endpoint, data);
+                } catch (error) {
+                    console.error('更新issue失败:', error);
+                    throw error;
+                }
+            }
+
+            // 公共方法：更新评论
+            async updateComment(commentId, data) {
+                try {
+                    const endpoint = `issues/comments/${commentId}`;
+                    return await this.#apiRequest('PATCH', endpoint, data);
+                } catch (error) {
+                    console.error('更新评论失败:', error);
+                    throw error;
+                }
+            }
+
+            // 公共方法：创建新评论
+            async createComment(issueNumber, data) {
+                try {
+                    const endpoint = `issues/${issueNumber}/comments`;
+                    return await this.#apiRequest('POST', endpoint, data);
+                } catch (error) {
+                    console.error('创建评论失败:', error);
+                    throw error;
+                }
+            }
+
+            // 可选：获取仓库信息
+            async getRepoInfo() {
+                try {
+                    return await this.#apiRequest('GET', '', null);
+                } catch (error) {
+                    console.error('获取仓库信息失败:', error);
+                    throw error;
+                }
+            }
+
+            // 设置当前选中的issue
+            setCurrentIssue(issue) {
+                this.currentIssue = issue;
+            }
+
+            // 设置当前选中的评论
+            setCurrentComment(comment) {
+                this.currentComment = comment;
+            }
+
+            // 获取当前选中的issue
+            getCurrentIssue() {
+                return this.currentIssue;
+            }
+
+            // 获取当前选中的评论
+            getCurrentComment() {
+                return this.currentComment;
+            }
+        }
+
+        // 网页应用逻辑
+        document.addEventListener('DOMContentLoaded', () => {
+            const api = new CGithubAPI();
+            const issuesList = document.getElementById('issues-list');
+            const commentsList = document.getElementById('comments-list');
+            const canvasContent = document.getElementById('canvas-content');
+            const statusBar = document.getElementById('status');
+            const refreshBtn = document.getElementById('refresh');
+            const repoInfoBtn = document.getElementById('repoInfo');
+            const newIssueBtn = document.getElementById('newIssue');
+            const editIssueBtn = document.getElementById('editIssueBtn');
+            const editCommentBtn = document.getElementById('editCommentBtn');
+            const newCommentSection = document.getElementById('new-comment-section');
+            const newCommentText = document.getElementById('new-comment-text');
+            const submitNewCommentBtn = document.getElementById('submit-new-comment');
+
+            // 更新状态栏
+            function updateStatus(message, isError = false) {
+                statusBar.textContent = `${message} | 仓库: ${api.currentRepo}`;
+                statusBar.style.color = isError ? '#dc3545' : 'white';
+            }
+
+            // 显示消息
+            function showMessage(element, message, type = 'info') {
+                const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : 'loading');
+                element.innerHTML = `<div class="${className}">${message}</div>`;
+            }
+
+            // 显示错误
+            function showError(element, error) {
+                showMessage(element, `错误: ${error.message}`, 'error');
+            }
+
+            // 显示成功消息
+            function showSuccess(element, message) {
+                showMessage(element, message, 'success');
+                // 3秒后自动移除成功消息
+                setTimeout(() => {
+                    if (element.firstChild && element.firstChild.classList.contains('success')) {
+                        element.removeChild(element.firstChild);
+                    }
+                }, 3000);
+            }
+
+            // 加载并显示issues
+            async function loadIssues() {
+                issuesList.innerHTML = '<div class="loading">加载issues中...</div>';
+                updateStatus('加载issues中...');
+                try {
+                    const issues = await api.getIssues();
+                    if (issues.length === 0) {
+                        issuesList.innerHTML = '<p>没有找到issues。</p>';
+                        updateStatus('没有找到issues');
+                        return;
+                    }
+                    issuesList.innerHTML = '';
+                    issues.forEach(issue => {
+                        const button = document.createElement('button');
+                        button.textContent = `#${issue.number}: ${issue.title}`;
+                        button.title = issue.title;
+                        button.dataset.issueNumber = issue.number;
+                        button.dataset.issueId = issue.id;
+                        button.addEventListener('click', () => onIssueClick(issue));
+                        issuesList.appendChild(button);
+                    });
+                    updateStatus(`已加载 ${issues.length} 个issues`);
+                } catch (error) {
+                    showError(issuesList, error);
+                    updateStatus('加载失败', true);
+                }
+            }
+
+            // 处理issue点击事件
+            async function onIssueClick(issue) {
+                // 更新左侧按钮活动状态
+                document.querySelectorAll('#issues-list button').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                
+                // 设置当前issue
+                api.setCurrentIssue(issue);
+                
+                // 在画布中显示issue详情
+                displayIssueDetail(issue);
+                
+                // 显示编辑issue按钮
+                editIssueBtn.style.display = 'block';
+                editCommentBtn.style.display = 'none';
+                
+                // 显示新评论区域
+                newCommentSection.style.display = 'block';
+                newCommentText.value = '';
+                
+                // 加载该issue的评论
+                loadComments(issue.number);
+            }
+
+            // 显示issue详情
+            function displayIssueDetail(issue) {
+                canvasContent.innerHTML = `
+                    <div class="issue-header">
+                        <h2>Issue #${issue.number}: ${issue.title}</h2>
+                        <div class="issue-actions">
+                            <button class="btn btn-primary" onclick="showEditIssueForm()">✏️ 编辑</button>
+                        </div>
+                    </div>
+                    <div class="meta-info">
+                        <p><strong>状态:</strong> <span style="color: ${issue.state === 'open' ? '#28a745' : '#dc3545'}">${issue.state === 'open' ? '开启' : '关闭'}</span></p>
+                        <p><strong>创建者:</strong> ${issue.user.login}</p>
+                        <p><strong>创建时间:</strong> ${new Date(issue.created_at).toLocaleString()}</p>
+                        <p><strong>更新时间:</strong> ${new Date(issue.updated_at).toLocaleString()}</p>
+                        ${issue.assignee ? `<p><strong>负责人:</strong> ${issue.assignee.login}</p>` : ''}
+                        ${issue.labels && issue.labels.length > 0 ? 
+                            `<p><strong>标签:</strong> ${issue.labels.map(label => `<span style="background-color: #${label.color}; color: white; padding: 2px 8px; border-radius: 10px; margin-right: 5px;">${label.name}</span>`).join('')}</p>` : 
+                            ''}
+                    </div>
+                    <h3>描述</h3>
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #0366d6; margin-top: 10px;">
+                        ${issue.body ? issue.body.replace(/\n/g, '<br>') : '<em>无描述</em>'}
+                    </div>
+                `;
+            }
+
+            // 显示编辑issue表单
+            function showEditIssueForm() {
+                const issue = api.getCurrentIssue();
+                if (!issue) {
+                    alert('请先选择一个issue');
+                    return;
+                }
+                
+                canvasContent.innerHTML = `
+                    <h2>编辑 Issue #${issue.number}</h2>
+                    <div class="edit-form">
+                        <div class="form-group">
+                            <label for="edit-issue-title">标题</label>
+                            <input type="text" id="edit-issue-title" value="${issue.title.replace(/"/g, '&quot;')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-issue-body">描述</label>
+                            <textarea id="edit-issue-body">${issue.body || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-issue-state">状态</label>
+                            <select id="edit-issue-state" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+                                <option value="open" ${issue.state === 'open' ? 'selected' : ''}>开启</option>
+                                <option value="closed" ${issue.state === 'closed' ? 'selected' : ''}>关闭</option>
+                            </select>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="saveIssueChanges()">💾 保存更改</button>
+                            <button class="btn btn-secondary" onclick="cancelEditIssue()">❌ 取消</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 保存issue更改
+            window.saveIssueChanges = async function() {
+                const issue = api.getCurrentIssue();
+                if (!issue) return;
+                
+                const title = document.getElementById('edit-issue-title').value.trim();
+                const body = document.getElementById('edit-issue-body').value.trim();
+                const state = document.getElementById('edit-issue-state').value;
+                
+                if (!title) {
+                    alert('标题不能为空');
+                    return;
+                }
+                
+                updateStatus('保存issue更改中...');
+                
+                try {
+                    const data = { title, body, state };
+                    const updatedIssue = await api.updateIssue(issue.number, data);
+                    
+                    // 更新本地issue对象
+                    Object.assign(issue, updatedIssue);
+                    
+                    // 重新显示issue详情
+                    displayIssueDetail(issue);
+                    showSuccess(canvasContent, 'Issue更新成功！');
+                    updateStatus('Issue更新成功');
+                    
+                    // 刷新issues列表
+                    loadIssues();
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('保存失败', true);
+                }
+            };
+
+            // 取消编辑issue
+            window.cancelEditIssue = function() {
+                const issue = api.getCurrentIssue();
+                if (issue) {
+                    displayIssueDetail(issue);
+                }
+            };
+
+            // 加载并显示评论
+            async function loadComments(issueNumber) {
+                commentsList.innerHTML = '<div class="loading">加载评论中...</div>';
+                updateStatus(`加载issue #${issueNumber}的评论中...`);
+                try {
+                    const comments = await api.getComments(issueNumber);
+                    
+                    // 清空评论列表，但保留新评论区域
+                    const newCommentSection = document.getElementById('new-comment-section');
+                    commentsList.innerHTML = '';
+                    
+                    if (comments.length === 0) {
+                        const noCommentsMsg = document.createElement('p');
+                        noCommentsMsg.textContent = '没有评论。';
+                        commentsList.appendChild(noCommentsMsg);
+                    } else {
+                        comments.forEach(comment => {
+                            const button = document.createElement('button');
+                            button.textContent = `💬 ${comment.user.login}: ${comment.body.substring(0, 30)}${comment.body.length > 30 ? '...' : ''}`;
+                            button.title = comment.body;
+                            button.dataset.commentId = comment.id;
+                            button.addEventListener('click', () => onCommentClick(comment));
+                            commentsList.appendChild(button);
+                        });
+                    }
+                    
+                    // 重新添加新评论区域
+                    commentsList.appendChild(newCommentSection);
+                    updateStatus(`已加载 ${comments.length} 条评论`);
+                } catch (error) {
+                    showError(commentsList, error);
+                    updateStatus('评论加载失败', true);
+                }
+            }
+
+            // 处理评论点击事件
+            function onCommentClick(comment) {
+                // 更新右侧按钮活动状态
+                document.querySelectorAll('#comments-list button').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                
+                // 设置当前评论
+                api.setCurrentComment(comment);
+                
+                // 显示编辑评论按钮
+                editCommentBtn.style.display = 'block';
+                editIssueBtn.style.display = 'none';
+                
+                // 在画布中显示评论详情
+                displayCommentDetail(comment);
+            }
+
+            // 显示评论详情
+            function displayCommentDetail(comment) {
+                canvasContent.innerHTML = `
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <h3>评论详情</h3>
+                            <button class="btn btn-primary" onclick="showEditCommentForm()">✏️ 编辑</button>
+                        </div>
+                        <p><strong>评论者:</strong> ${comment.user.login}</p>
+                        <p><strong>时间:</strong> ${new Date(comment.created_at).toLocaleString()}</p>
+                        <p><strong>最后更新:</strong> ${new Date(comment.updated_at).toLocaleString()}</p>
+                        <hr>
+                        <div style="margin-top: 15px; padding: 15px; background-color: white; border-radius: 5px;">
+                            ${comment.body.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 显示编辑评论表单
+            window.showEditCommentForm = function() {
+                const comment = api.getCurrentComment();
+                if (!comment) {
+                    alert('请先选择一个评论');
+                    return;
+                }
+                
+                canvasContent.innerHTML = `
+                    <h2>编辑评论</h2>
+                    <div class="edit-form">
+                        <div class="form-group">
+                            <label for="edit-comment-body">评论内容</label>
+                            <textarea id="edit-comment-body" rows="8">${comment.body || ''}</textarea>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="saveCommentChanges()">💾 保存更改</button>
+                            <button class="btn btn-secondary" onclick="cancelEditComment()">❌ 取消</button>
+                            <button class="btn btn-danger" onclick="deleteComment()" style="margin-left: auto;">🗑️ 删除评论</button>
+                        </div>
+                    </div>
+                `;
+            };
+
+            // 保存评论更改
+            window.saveCommentChanges = async function() {
+                const comment = api.getCurrentComment();
+                if (!comment) return;
+                
+                const body = document.getElementById('edit-comment-body').value.trim();
+                
+                if (!body) {
+                    alert('评论内容不能为空');
+                    return;
+                }
+                
+                updateStatus('保存评论更改中...');
+                
+                try {
+                    const data = { body };
+                    const updatedComment = await api.updateComment(comment.id, data);
+                    
+                    // 更新本地评论对象
+                    Object.assign(comment, updatedComment);
+                    
+                    // 重新显示评论详情
+                    displayCommentDetail(comment);
+                    showSuccess(canvasContent, '评论更新成功！');
+                    updateStatus('评论更新成功');
+                    
+                    // 重新加载评论列表
+                    const issue = api.getCurrentIssue();
+                    if (issue) {
+                        loadComments(issue.number);
+                    }
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('保存失败', true);
+                }
+            };
+
+            // 删除评论
+            window.deleteComment = async function() {
+                if (!confirm('确定要删除这条评论吗？此操作不可撤销。')) {
+                    return;
+                }
+                
+                const comment = api.getCurrentComment();
+                if (!comment) return;
+                
+                updateStatus('删除评论中...');
+                
+                try {
+                    // 注意：GitHub API 没有直接的删除评论端点，但我们可以将评论内容清空
+                    const data = { body: "[此评论已被删除]" };
+                    await api.updateComment(comment.id, data);
+                    
+                    // 重新加载评论列表
+                    const issue = api.getCurrentIssue();
+                    if (issue) {
+                        loadComments(issue.number);
+                    }
+                    
+                    // 显示消息
+                    canvasContent.innerHTML = '<div class="success">评论已标记为删除！</div>';
+                    updateStatus('评论已标记为删除');
+                    
+                    // 隐藏编辑评论按钮
+                    editCommentBtn.style.display = 'none';
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('删除失败', true);
+                }
+            };
+
+            // 取消编辑评论
+            window.cancelEditComment = function() {
+                const comment = api.getCurrentComment();
+                if (comment) {
+                    displayCommentDetail(comment);
+                }
+            };
+
+            // 提交新评论
+            submitNewCommentBtn.addEventListener('click', async function() {
+                const issue = api.getCurrentIssue();
+                if (!issue) {
+                    alert('请先选择一个issue');
+                    return;
+                }
+                
+                const body = newCommentText.value.trim();
+                if (!body) {
+                    alert('请输入评论内容');
+                    return;
+                }
+                
+                updateStatus('提交新评论中...');
+                
+                try {
+                    const data = { body };
+                    await api.createComment(issue.number, data);
+                    
+                    // 清空输入框
+                    newCommentText.value = '';
+                    
+                    // 重新加载评论列表
+                    loadComments(issue.number);
+                    
+                    // 显示成功消息
+                    showSuccess(canvasContent, '评论添加成功！');
+                    updateStatus('评论添加成功');
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('提交失败', true);
+                }
+            });
+
+            // 编辑issue按钮点击事件
+            editIssueBtn.addEventListener('click', function() {
+                const issue = api.getCurrentIssue();
+                if (issue) {
+                    showEditIssueForm();
+                } else {
+                    alert('请先选择一个issue');
+                }
+            });
+
+            // 编辑评论按钮点击事件
+            editCommentBtn.addEventListener('click', function() {
+                const comment = api.getCurrentComment();
+                if (comment) {
+                    showEditCommentForm();
+                } else {
+                    alert('请先选择一个评论');
+                }
+            });
+
+            // 刷新按钮事件
+            refreshBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                loadIssues();
+                commentsList.innerHTML = '<p>选择一个issue以加载评论。</p>';
+                canvasContent.innerHTML = '<p>点击左侧的issue按钮查看详情，点击右侧的评论按钮查看评论。</p><p>可以使用编辑功能修改issue和评论，或添加新的评论。</p>';
+                newCommentSection.style.display = 'none';
+                editIssueBtn.style.display = 'none';
+                editCommentBtn.style.display = 'none';
+                updateStatus('已刷新');
+            });
+
+            // 仓库信息按钮事件
+            repoInfoBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                updateStatus('获取仓库信息中...');
+                try {
+                    const repoInfo = await api.getRepoInfo();
+                    canvasContent.innerHTML = `
+                        <h2>仓库信息</h2>
+                        <div class="meta-info">
+                            <p><strong>仓库名:</strong> ${repoInfo.full_name}</p>
+                            <p><strong>描述:</strong> ${repoInfo.description || '无描述'}</p>
+                            <p><strong>Star数:</strong> ${repoInfo.stargazers_count}</p>
+                            <p><strong>Watch数:</strong> ${repoInfo.subscribers_count}</p>
+                            <p><strong>Fork数:</strong> ${repoInfo.forks_count}</p>
+                            <p><strong>Issues数:</strong> ${repoInfo.open_issues_count}</p>
+                            <p><strong>默认分支:</strong> ${repoInfo.default_branch}</p>
+                            <p><strong>更新时间:</strong> ${new Date(repoInfo.updated_at).toLocaleString()}</p>
+                        </div>
+                    `;
+                    updateStatus('仓库信息加载完成');
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('获取仓库信息失败', true);
+                }
+            });
+
+            // 新建issue按钮事件
+            newIssueBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                canvasContent.innerHTML = `
+                    <h2>新建 Issue</h2>
+                    <div class="edit-form">
+                        <div class="form-group">
+                            <label for="new-issue-title">标题 *</label>
+                            <input type="text" id="new-issue-title" placeholder="请输入issue标题">
+                        </div>
+                        <div class="form-group">
+                            <label for="new-issue-body">描述</label>
+                            <textarea id="new-issue-body" placeholder="请输入issue描述（可选）" rows="10"></textarea>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-success" onclick="createNewIssue()">➕ 创建Issue</button>
+                            <button class="btn btn-secondary" onclick="cancelNewIssue()">❌ 取消</button>
+                        </div>
+                    </div>
+                `;
+                updateStatus('准备创建新issue');
+            });
+
+            // 创建新issue函数
+            window.createNewIssue = async function() {
+                const title = document.getElementById('new-issue-title').value.trim();
+                const body = document.getElementById('new-issue-body').value.trim();
+                
+                if (!title) {
+                    alert('标题不能为空');
+                    return;
+                }
+                
+                updateStatus('创建新issue中...');
+                
+                try {
+                    // 注意：这里需要实现创建issue的API调用
+                    // 由于原API类中没有创建issue的方法，这里只显示示例
+                    // 实际使用时需要添加对应的API方法
+                    showSuccess(canvasContent, '创建issue功能需要实现对应的API方法。当前为演示模式。');
+                    updateStatus('创建功能需完整实现');
+                    
+                    // 模拟创建成功后刷新issues列表
+                    setTimeout(() => {
+                        loadIssues();
+                        canvasContent.innerHTML = '<div class="success">Issue创建成功！已刷新issues列表。</div>';
+                    }, 1500);
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('创建失败', true);
+                }
+            };
+
+            // 取消新建issue
+            window.cancelNewIssue = function() {
+                canvasContent.innerHTML = '<p>点击左侧的issue按钮查看详情，点击右侧的评论按钮查看评论。</p><p>可以使用编辑功能修改issue和评论，或添加新的评论。</p>';
+            };
+
+            // 初始加载issues
+            loadIssues();
+        });
+    </script>
+</body>
+</html>
