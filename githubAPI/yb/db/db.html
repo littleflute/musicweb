@@ -150,6 +150,26 @@
         .btn-secondary:hover {
             background-color: #e1e4e8;
         }
+        .btn-run {
+            background-color: #2ea44f;
+            color: white;
+            margin-left: 10px;
+        }
+        .btn-run:hover {
+            background-color: #22863a;
+        }
+        /* 运行结果样式 */
+        .run-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f6f8fa;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
         /* 底部状态栏 */
         footer {
             background-color: #24292e;
@@ -407,7 +427,11 @@
                             <textarea id="issue-body">${escapeHtml(issue.body || '')}</textarea>
                         </div>
                         <button class="btn btn-primary" onclick="saveIssueEdit(${issue.number})">保存修改</button>
+                        <button class="btn btn-run" onclick="runCode('issue-body')">运行内容</button>
+                        <button class="btn btn-secondary" onclick="clearRunResult()">清空结果</button>
                     </div>
+                    <!-- 运行结果展示区 -->
+                    <div id="run-result" class="run-result" style="display: none;"></div>
 
                     <hr>
                     <h3>Issue内容</h3>
@@ -421,6 +445,7 @@
                             <textarea id="new-comment-body" placeholder="输入评论内容..."></textarea>
                         </div>
                         <button class="btn btn-primary" onclick="addNewComment(${issue.number})">提交评论</button>
+                        <button class="btn btn-run" onclick="runCode('new-comment-body')">运行内容</button>
                     </div>
                 `;
 
@@ -478,13 +503,89 @@
                             <textarea id="comment-body">${escapeHtml(comment.body)}</textarea>
                         </div>
                         <button class="btn btn-primary" onclick="saveCommentEdit(${comment.id})">保存修改</button>
+                        <button class="btn btn-run" onclick="runCode('comment-body')">运行内容</button>
+                        <button class="btn btn-secondary" onclick="clearRunResult()">清空结果</button>
                     </div>
+                    <!-- 运行结果展示区 -->
+                    <div id="run-result" class="run-result" style="display: none;"></div>
 
                     <hr>
                     <h3>评论内容</h3>
                     <p>${comment.body}</p>
                 `;
             }
+
+            // 运行代码函数（全局函数）
+            window.runCode = function(elementId) {
+                const codeElement = document.getElementById(elementId);
+                const resultElement = document.getElementById('run-result');
+                const code = codeElement.value.trim();
+
+                if (!code) {
+                    alert('请输入要运行的代码内容！');
+                    return;
+                }
+
+                // 显示结果区域
+                resultElement.style.display = 'block';
+                resultElement.style.color = '#333';
+                
+                try {
+                    updateStatus('正在运行代码...');
+                    
+                    // 创建一个安全的执行环境
+                    // 重定向console.log到结果区域
+                    const originalLog = console.log;
+                    const originalError = console.error;
+                    let output = '';
+                    
+                    console.log = function(...args) {
+                        output += args.join(' ') + '\n';
+                        resultElement.textContent = output;
+                        originalLog.apply(console, args);
+                    };
+                    
+                    console.error = function(...args) {
+                        output += '[错误] ' + args.join(' ') + '\n';
+                        resultElement.textContent = output;
+                        resultElement.style.color = 'red';
+                        originalError.apply(console, args);
+                    };
+                    
+                    // 执行代码
+                    const result = eval(code);
+                    
+                    // 如果有返回值，也显示出来
+                    if (result !== undefined) {
+                        output += '\n返回值: ' + JSON.stringify(result, null, 2);
+                        resultElement.textContent = output;
+                    }
+                    
+                    resultElement.style.color = '#22863a';
+                    updateStatus('代码运行完成');
+                    
+                    // 恢复console
+                    console.log = originalLog;
+                    console.error = originalError;
+                    
+                } catch (error) {
+                    resultElement.textContent = '运行错误: ' + error.message;
+                    resultElement.style.color = 'red';
+                    updateStatus('代码运行出错');
+                    console.error('代码运行错误:', error);
+                }
+            };
+
+            // 清空运行结果（全局函数）
+            window.clearRunResult = function() {
+                const resultElement = document.getElementById('run-result');
+                if (resultElement) {
+                    resultElement.style.display = 'none';
+                    resultElement.textContent = '';
+                    resultElement.style.color = '#333';
+                }
+                updateStatus('就绪');
+            };
 
             // 保存Issue编辑（全局函数，供表单调用）
             window.saveIssueEdit = async function(issueNumber) {
@@ -612,6 +713,3 @@
     </script>
 </body>
 </html>
-<!--
-添加一个运行按钮，可以运行编辑文本框里的内容。
--->
