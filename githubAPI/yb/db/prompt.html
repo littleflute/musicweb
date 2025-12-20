@@ -102,6 +102,54 @@
         .canvas-content p {
             color: #444;
         }
+        /* 表单样式 */
+        .edit-form, .comment-form {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #0366d6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0250a3;
+        }
+        .btn-secondary {
+            background-color: #f6f8fa;
+            color: #333;
+            margin-left: 10px;
+        }
+        .btn-secondary:hover {
+            background-color: #e1e4e8;
+        }
         /* 底部状态栏 */
         footer {
             background-color: #24292e;
@@ -130,6 +178,10 @@
         }
         .error {
             color: red;
+            padding: 10px;
+        }
+        .success {
+            color: green;
             padding: 10px;
         }
         .loading {
@@ -170,7 +222,7 @@
     </footer>
 
     <script>
-        // 升级CGithubAPI类
+        // 升级CGithubAPI类 - 新增编辑/添加功能
         class CGithubAPI {
             constructor() {
                 this.currentRepo = 'musicweb';
@@ -179,7 +231,7 @@
 
             // 私有方法：API请求
             async #apiRequest(method, endpoint, data) {
-                const token = "ghp_2BF" + "JztcBlHHOkBybs" + "UVJZGHQ4S" + "wvFR0poLqc"; // 注意：在实际使用中，应将token存储在安全位置
+                const token = "ghp_2BF" + "JztcBlHHOkBybs" + "UVJZGHQ4S" + "wvFR0poLqc"; // 实际使用请替换为安全存储的Token
                 const url = `${this.baseUrl}/${this.currentRepo}/${endpoint}`;
                 const headers = {
                     'Authorization': `token ${token}`,
@@ -199,10 +251,10 @@
                 return response.json();
             }
 
-            // 公共方法：获取仓库的所有issues
+            // 获取所有Issues
             async getIssues() {
                 try {
-                    const endpoint = 'issues?state=all&per_page=100'; // 获取最多100个issues
+                    const endpoint = 'issues?state=all&per_page=100';
                     return await this.#apiRequest('GET', endpoint, null);
                 } catch (error) {
                     console.error('获取issues失败:', error);
@@ -210,7 +262,7 @@
                 }
             }
 
-            // 公共方法：获取特定issue的评论
+            // 获取特定Issue的评论
             async getComments(issueNumber) {
                 try {
                     const endpoint = `issues/${issueNumber}/comments`;
@@ -221,13 +273,48 @@
                 }
             }
 
-            // 可选：获取仓库信息
+            // 获取仓库信息
             async getRepoInfo() {
                 try {
-                    const endpoint = '';
                     return await this.#apiRequest('GET', '', null);
                 } catch (error) {
                     console.error('获取仓库信息失败:', error);
+                    throw error;
+                }
+            }
+
+            // 编辑Issue（更新标题/内容）
+            async updateIssue(issueNumber, title, body) {
+                try {
+                    const endpoint = `issues/${issueNumber}`;
+                    const data = { title, body };
+                    return await this.#apiRequest('PATCH', endpoint, data);
+                } catch (error) {
+                    console.error('编辑Issue失败:', error);
+                    throw error;
+                }
+            }
+
+            // 编辑评论
+            async updateComment(commentId, body) {
+                try {
+                    const endpoint = `issues/comments/${commentId}`;
+                    const data = { body };
+                    return await this.#apiRequest('PATCH', endpoint, data);
+                } catch (error) {
+                    console.error('编辑评论失败:', error);
+                    throw error;
+                }
+            }
+
+            // 添加新评论
+            async createComment(issueNumber, body) {
+                try {
+                    const endpoint = `issues/${issueNumber}/comments`;
+                    const data = { body };
+                    return await this.#apiRequest('POST', endpoint, data);
+                } catch (error) {
+                    console.error('添加评论失败:', error);
                     throw error;
                 }
             }
@@ -243,6 +330,10 @@
             const refreshBtn = document.getElementById('refresh');
             const repoInfoBtn = document.getElementById('repoInfo');
 
+            // 存储当前选中的Issue/Comment ID
+            let currentIssueNumber = null;
+            let currentCommentId = null;
+
             // 更新状态栏
             function updateStatus(message) {
                 statusBar.textContent = `${message} | 仓库: ${api.currentRepo}`;
@@ -253,7 +344,15 @@
                 element.innerHTML = `<div class="error">错误: ${error.message}</div>`;
             }
 
-            // 加载并显示issues
+            // 显示成功提示
+            function showSuccess(element, message) {
+                element.innerHTML = `<div class="success">成功: ${message}</div>`;
+                setTimeout(() => {
+                    element.querySelector('.success')?.remove();
+                }, 3000);
+            }
+
+            // 加载并显示Issues
             async function loadIssues() {
                 issuesList.innerHTML = '<div class="loading">加载issues中...</div>';
                 updateStatus('加载issues中...');
@@ -279,22 +378,53 @@
                 }
             }
 
-            // 处理issue点击事件
+            // 处理Issue点击事件
             async function onIssueClick(issue) {
+                // 记录当前选中的Issue编号
+                currentIssueNumber = issue.number;
+                currentCommentId = null;
+
                 // 更新左侧按钮活动状态
                 document.querySelectorAll('#issues-list button').forEach(btn => btn.classList.remove('active'));
                 event.target.classList.add('active');
 
-                // 在画布中显示issue详情
+                // 在画布中显示Issue详情 + 编辑表单 + 新增评论表单
                 canvasContent.innerHTML = `
                     <h2>Issue #${issue.number}: ${issue.title}</h2>
                     <p><strong>状态:</strong> ${issue.state} | <strong>创建者:</strong> ${issue.user.login}</p>
                     <p><strong>创建时间:</strong> ${new Date(issue.created_at).toLocaleString()}</p>
                     <hr>
+                    
+                    <!-- Issue编辑表单 -->
+                    <div class="edit-form">
+                        <h3>编辑Issue</h3>
+                        <div class="form-group">
+                            <label for="issue-title">标题:</label>
+                            <input type="text" id="issue-title" value="${escapeHtml(issue.title)}">
+                        </div>
+                        <div class="form-group">
+                            <label for="issue-body">内容:</label>
+                            <textarea id="issue-body">${escapeHtml(issue.body || '')}</textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveIssueEdit(${issue.number})">保存修改</button>
+                    </div>
+
+                    <hr>
+                    <h3>Issue内容</h3>
                     <p>${issue.body || '无描述'}</p>
+                    
+                    <!-- 新增评论表单 -->
+                    <div class="comment-form" style="margin-top: 20px;">
+                        <h3>添加新评论</h3>
+                        <div class="form-group">
+                            <label for="new-comment-body">评论内容:</label>
+                            <textarea id="new-comment-body" placeholder="输入评论内容..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="addNewComment(${issue.number})">提交评论</button>
+                    </div>
                 `;
 
-                // 加载该issue的评论
+                // 加载该Issue的评论
                 loadComments(issue.number);
             }
 
@@ -312,6 +442,7 @@
                     comments.forEach(comment => {
                         const button = document.createElement('button');
                         button.textContent = `评论者: ${comment.user.login} (${new Date(comment.created_at).toLocaleDateString()})`;
+                        button.dataset.commentId = comment.id;
                         button.dataset.commentBody = comment.body;
                         button.addEventListener('click', () => onCommentClick(comment));
                         commentsList.appendChild(button);
@@ -325,23 +456,131 @@
 
             // 处理评论点击事件
             function onCommentClick(comment) {
+                // 记录当前选中的评论ID
+                currentCommentId = comment.id;
+
                 // 更新右侧按钮活动状态
                 document.querySelectorAll('#comments-list button').forEach(btn => btn.classList.remove('active'));
                 event.target.classList.add('active');
 
-                // 在画布中显示评论详情
+                // 在画布中显示评论详情 + 编辑表单
                 canvasContent.innerHTML = `
                     <h2>评论详情</h2>
                     <p><strong>评论者:</strong> ${comment.user.login}</p>
                     <p><strong>时间:</strong> ${new Date(comment.created_at).toLocaleString()}</p>
                     <hr>
+                    
+                    <!-- 评论编辑表单 -->
+                    <div class="edit-form">
+                        <h3>编辑评论</h3>
+                        <div class="form-group">
+                            <label for="comment-body">评论内容:</label>
+                            <textarea id="comment-body">${escapeHtml(comment.body)}</textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveCommentEdit(${comment.id})">保存修改</button>
+                    </div>
+
+                    <hr>
+                    <h3>评论内容</h3>
                     <p>${comment.body}</p>
                 `;
+            }
+
+            // 保存Issue编辑（全局函数，供表单调用）
+            window.saveIssueEdit = async function(issueNumber) {
+                const titleInput = document.getElementById('issue-title');
+                const bodyInput = document.getElementById('issue-body');
+                const title = titleInput.value.trim();
+                const body = bodyInput.value.trim();
+
+                if (!title) {
+                    alert('标题不能为空！');
+                    return;
+                }
+
+                updateStatus(`正在更新Issue #${issueNumber}...`);
+                try {
+                    await api.updateIssue(issueNumber, title, body);
+                    showSuccess(canvasContent, `Issue #${issueNumber} 更新成功！`);
+                    // 重新加载Issues和当前Issue详情
+                    loadIssues();
+                    // 重新获取更新后的Issue并显示
+                    const updatedIssues = await api.getIssues();
+                    const updatedIssue = updatedIssues.find(iss => iss.number === issueNumber);
+                    if (updatedIssue) {
+                        onIssueClick(updatedIssue);
+                    }
+                    updateStatus('Issue更新完成');
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('Issue更新失败');
+                }
+            };
+
+            // 保存评论编辑（全局函数，供表单调用）
+            window.saveCommentEdit = async function(commentId) {
+                const bodyInput = document.getElementById('comment-body');
+                const body = bodyInput.value.trim();
+
+                if (!body) {
+                    alert('评论内容不能为空！');
+                    return;
+                }
+
+                updateStatus(`正在更新评论 #${commentId}...`);
+                try {
+                    await api.updateComment(commentId, body);
+                    showSuccess(canvasContent, `评论 #${commentId} 更新成功！`);
+                    // 重新加载当前Issue的评论
+                    loadComments(currentIssueNumber);
+                    updateStatus('评论更新完成');
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('评论更新失败');
+                }
+            };
+
+            // 添加新评论（全局函数，供表单调用）
+            window.addNewComment = async function(issueNumber) {
+                const bodyInput = document.getElementById('new-comment-body');
+                const body = bodyInput.value.trim();
+
+                if (!body) {
+                    alert('评论内容不能为空！');
+                    return;
+                }
+
+                updateStatus(`正在添加新评论到Issue #${issueNumber}...`);
+                try {
+                    await api.createComment(issueNumber, body);
+                    showSuccess(canvasContent, '新评论添加成功！');
+                    // 清空输入框
+                    bodyInput.value = '';
+                    // 重新加载评论列表
+                    loadComments(issueNumber);
+                    updateStatus('新评论添加完成');
+                } catch (error) {
+                    showError(canvasContent, error);
+                    updateStatus('添加评论失败');
+                }
+            };
+
+            // HTML转义函数（防止XSS）
+            function escapeHtml(text) {
+                if (!text) return '';
+                return text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
             }
 
             // 刷新按钮事件
             refreshBtn.addEventListener('click', (e) => {
                 e.preventDefault();
+                currentIssueNumber = null;
+                currentCommentId = null;
                 loadIssues();
                 commentsList.innerHTML = '<p>选择一个issue以加载评论。</p>';
                 canvasContent.innerHTML = '<p>点击左侧的issue按钮查看详情，点击右侧的评论按钮查看评论。</p>';
@@ -367,12 +606,12 @@
                 }
             });
 
-            // 初始加载issues
+            // 初始加载Issues
             loadIssues();
         });
     </script>
 </body>
 </html>
 <!--
-升级程序可以编辑issue的内容和title，还有评论的内容也可以编辑。并且可以更新。可以添加新的评论。
+添加一个运行按钮，可以运行一小的内容,或者评论的内容。
 -->
