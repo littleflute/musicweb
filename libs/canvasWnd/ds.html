@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas 图形编辑器测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            background: #3498db;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11);
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1);
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+        }
+        
+        .btn-add-line {
+            background: #2ecc71;
+        }
+        
+        .btn-add-line:hover {
+            background: #27ae60;
+        }
+        
+        .btn-add-triangle {
+            background: #e74c3c;
+        }
+        
+        .btn-add-triangle:hover {
+            background: #c0392b;
+        }
+        
+        .btn-clear {
+            background: #95a5a6;
+        }
+        
+        .btn-clear:hover {
+            background: #7f8c8d;
+        }
+        
+        .btn-toggle-ui {
+            background: #9b59b6;
+        }
+        
+        .btn-toggle-ui:hover {
+            background: #8e44ad;
+        }
+        
+        .info-panel {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .info-panel h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            background: #ecf0f1;
+            padding: 12px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        
+        .instructions {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .instructions h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+            line-height: 1.6;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .instructions code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                justify-content: center;
+            }
+            
+            .btn {
+                flex: 1;
+                min-width: 150px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .btn {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Canvas 图形编辑器测试</h1>
+            <p class="subtitle">测试 C4CanvasWnd 类，支持动态添加和拖动图形对象</p>
+        </header>
+        
+        <div class="controls">
+            <button class="btn btn-add-line" id="addLineBtn">添加直线</button>
+            <button class="btn btn-add-triangle" id="addTriangleBtn">添加三角形</button>
+            <button class="btn btn-clear" id="clearBtn">清空所有图形</button>
+            <button class="btn btn-toggle-ui" id="toggleBtn">显示/隐藏 Canvas 窗口</button>
+        </div>
+        
+        <div class="info-panel">
+            <h3>当前状态</h3>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">直线数量:</span>
+                    <span class="stat-value" id="lineCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">三角形数量:</span>
+                    <span class="stat-value" id="triangleCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">图形总数:</span>
+                    <span class="stat-value" id="totalCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">窗口状态:</span>
+                    <span class="stat-value" id="windowStatus">隐藏</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>使用说明</h3>
+            <ul>
+                <li>点击 <code>添加直线</code> 按钮在画布上添加一条随机直线</li>
+                <li>点击 <code>添加三角形</code> 按钮在画布上添加一个随机三角形</li>
+                <li>点击 <code>显示/隐藏 Canvas 窗口</code> 按钮控制浮动窗口的显示状态</li>
+                <li>在画布中点击并拖动图形对象可以移动它们的位置</li>
+                <li>拖动标题栏可以移动浮动窗口的位置</li>
+                <li>窗口位置和大小会自动保存到本地存储，刷新页面后会恢复</li>
+                <li>点击窗口右上角的 <code>×</code> 按钮可以关闭窗口</li>
+            </ul>
+        </div>
+        
+        <footer>
+            <p>Canvas 图形编辑器测试页面 &copy; 2023 | 基于 C4CanvasWnd 类</p>
+        </footer>
+    </div>
+
+    <!-- 原始的 C4CanvasWnd 类代码 -->
+    <script>
+        // 这是您提供的 C4CanvasWnd 类代码
+        class C4CanvasWnd {
+            constructor() {
+                const id4Canvas = "id_4_canvas";
+                this.isVisible = false;
+                this.isDragging = false;
+                this.dragStartX = 0;
+                this.dragStartY = 0;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                
+                // 从本地存储中恢复窗口状态
+                this.windowState = this.loadWindowState();
+                
+                // 创建浮动窗口
+                this.wnd = document.createElement('div');
+                this.wnd.style.cssText = `
+                    position: fixed;
+                    border: 2px solid #666;
+                    background: white;
+                    box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+                    display: none;
+                    touch-action: none;
+                    z-index: 1000;
+                `;
+                
+                // 创建标题栏
+                const titleBar = document.createElement('div');
+                titleBar.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: #666;
+                    color: white;
+                    padding: 5px;
+                    cursor: move;
+                    user-select: none;
+                `;
+                
+                // 标题文字
+                const titleText = document.createElement('div');
+                titleText.textContent = 'Canvas Window V0.11: id = ' + id4Canvas;
+                
+                // 关闭按钮
+                this.closeBtn = document.createElement('div');
+                this.closeBtn.innerHTML = '&times;';
+                this.closeBtn.style.cssText = `
+                    cursor: pointer;
+                    padding: 0 8px;
+                    font-size: 20px;
+                    line-height: 1;
+                `;
+                
+                // 添加悬停效果
+                this.closeBtn.addEventListener('mouseenter', () => {
+                    this.closeBtn.style.background = '#999';
+                });
+                this.closeBtn.addEventListener('mouseleave', () => {
+                    this.closeBtn.style.background = 'transparent';
+                });
+                
+                // 组装标题栏
+                titleBar.appendChild(titleText);
+                titleBar.appendChild(this.closeBtn);
+                
+                // 创建画布
+                this.canvas = document.createElement('canvas');
+                this.canvas.id = id4Canvas;
+                this.canvas.style.width = '100%';
+                this.canvas.style.height = 'calc(100% - 60px)'; // 减去标题栏和状态栏高度
+                
+                // 创建状态栏
+                this.statusBar = document.createElement('div');
+                this.statusBar.style.cssText = `
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: #eee;
+                    padding: 5px;
+                    border-top: 1px solid #ccc;
+                    font-size: 12px;
+                    height: 20px;
+                    display: flex;
+                    align-items: center;
+                `;
+                
+                // 组装窗口
+                this.wnd.appendChild(titleBar);
+                this.wnd.appendChild(this.canvas);
+                this.wnd.appendChild(this.statusBar);
+                document.body.appendChild(this.wnd);
+                
+                // 应用保存的窗口位置和大小
+                this.applyWindowState();
+                
+                // 事件监听
+                this.canvas.addEventListener('mousedown', this.handleCanvasClick.bind(this));
+                this.canvas.addEventListener('touchstart', this.handleCanvasClick.bind(this), { passive: false });
+                this.canvas.addEventListener('mousemove', this.handleCanvasMove.bind(this));
+                this.canvas.addEventListener('touchmove', this.handleCanvasMove.bind(this), { passive: false });
+                this.canvas.addEventListener('mouseup', this.handleCanvasUp.bind(this));
+                this.canvas.addEventListener('touchend', this.handleCanvasUp.bind(this));
+                titleBar.addEventListener('mousedown', this.startDrag.bind(this));
+                titleBar.addEventListener('touchstart', this.startDrag.bind(this), { passive: false });
+                this.closeBtn.addEventListener('click', () => this.toggleUI());
+                window.addEventListener('resize', this.resizeCanvas.bind(this));
+                window.addEventListener('beforeunload', () => this.saveWindowState());
+                
+                this.resizeCanvas();
+                
+                // 恢复可见状态
+                if (this.windowState.isVisible) {
+                    this.showWindow();
+                }
+            }
+
+            // 从本地存储加载窗口状态
+            loadWindowState() {
+                const defaultState = {
+                    left: '10%',
+                    top: '15%',
+                    width: '80%',
+                    height: '70%',
+                    isVisible: false
+                };
+                
+                try {
+                    const saved = localStorage.getItem('C4CanvasWnd_state');
+                    if (saved) {
+                        return { ...defaultState, ...JSON.parse(saved) };
+                    }
+                } catch (e) {
+                    console.error('Failed to load window state:', e);
+                }
+                
+                return defaultState;
+            }
+
+            // 保存窗口状态到本地存储
+            saveWindowState() {
+                try {
+                    const state = {
+                        left: this.wnd.style.left,
+                        top: this.wnd.style.top,
+                        width: this.wnd.style.width,
+                        height: this.wnd.style.height,
+                        isVisible: this.isVisible
+                    };
+                    localStorage.setItem('C4CanvasWnd_state', JSON.stringify(state));
+                } catch (e) {
+                    console.error('Failed to save window state:', e);
+                }
+            }
+
+            // 应用保存的窗口状态
+            applyWindowState() {
+                this.wnd.style.left = this.windowState.left;
+                this.wnd.style.top = this.windowState.top;
+                this.wnd.style.width = this.windowState.width;
+                this.wnd.style.height = this.windowState.height;
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                // 重绘画布内容
+                if (typeof this.redraw === 'function') {
+                    this.redraw();
+                }
+            }
+
+            handleCanvasClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const y = (e.clientY || e.touches[0].clientY) - rect.top;
+                this.statusBar.textContent = `Clicked at: X:${x.toFixed(0)}, Y:${y.toFixed(0)}`;
+                
+                // 检查是否点击了图形对象
+                if (typeof this.handleShapeClick === 'function') {
+                    this.handleShapeClick(x, y);
+                }
+            }
+
+            handleCanvasMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const y = (e.clientY || e.touches[0].clientY) - rect.top;
+                this.statusBar.textContent = `Moving at: X:${x.toFixed(0)}, Y:${y.toFixed(0)}`;
+                
+                // 处理图形拖动
+                if (typeof this.handleShapeDrag === 'function') {
+                    this.handleShapeDrag(x, y);
+                }
+                
+                e.preventDefault();
+            }
+
+            handleCanvasUp(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = (e.clientX || e.changedTouches[0].clientX) - rect.left;
+                const y = (e.clientY || e.changedTouches[0].clientY) - rect.top;
+                this.statusBar.textContent = `Released at: X:${x.toFixed(0)}, Y:${y.toFixed(0)}`;
+                
+                // 停止图形拖动
+                if (typeof this.handleShapeDragEnd === 'function') {
+                    this.handleShapeDragEnd();
+                }
+            }
+
+            startDrag(e) {
+                this.isDragging = true;
+                this.dragStartX = e.clientX || e.touches[0].clientX;
+                this.dragStartY = e.clientY || e.touches[0].clientY;
+                this.offsetX = this.wnd.offsetLeft;
+                this.offsetY = this.wnd.offsetTop;
+                
+                // 使用事件委托来确保在文档级别监听移动事件
+                const onDragMove = this.onDrag.bind(this);
+                const onDragEnd = this.stopDrag.bind(this);
+                
+                document.addEventListener('mousemove', onDragMove);
+                document.addEventListener('touchmove', onDragMove, { passive: false });
+                document.addEventListener('mouseup', onDragEnd);
+                document.addEventListener('touchend', onDragEnd);
+                
+                // 存储事件监听器引用以便移除
+                this.currentDragMove = onDragMove;
+                this.currentDragEnd = onDragEnd;
+            }
+
+            onDrag(e) {
+                if (!this.isDragging) return;
+                e.preventDefault();
+                
+                const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                
+                if (clientX === undefined || clientY === undefined) return;
+                
+                const x = clientX - this.dragStartX;
+                const y = clientY - this.dragStartY;
+                
+                this.wnd.style.left = `${this.offsetX + x}px`;
+                this.wnd.style.top = `${this.offsetY + y}px`;
+            }
+
+            stopDrag() {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    
+                    // 移除事件监听器
+                    if (this.currentDragMove) {
+                        document.removeEventListener('mousemove', this.currentDragMove);
+                        document.removeEventListener('touchmove', this.currentDragMove);
+                    }
+                    if (this.currentDragEnd) {
+                        document.removeEventListener('mouseup', this.currentDragEnd);
+                        document.removeEventListener('touchend', this.currentDragEnd);
+                    }
+                    
+                    // 保存当前位置
+                    this.saveWindowState();
+                }
+            }
+
+            showWindow() {
+                this.isVisible = true;
+                this.wnd.style.display = 'block';
+                
+                // 确保窗口在可视区域内
+                this.ensureWindowInViewport();
+                
+                this.resizeCanvas();
+                this.saveWindowState();
+                
+                // 更新状态显示
+                if (typeof this.updateWindowStatus === 'function') {
+                    this.updateWindowStatus();
+                }
+            }
+
+            hideWindow() {
+                this.isVisible = false;
+                this.wnd.style.display = 'none';
+                this.saveWindowState();
+                
+                // 更新状态显示
+                if (typeof this.updateWindowStatus === 'function') {
+                    this.updateWindowStatus();
+                }
+            }
+
+            toggleUI() {
+                if (this.isVisible) {
+                    this.hideWindow();
+                } else {
+                    this.showWindow();
+                }
+            }
+
+            // 确保窗口不会移出可视区域
+            ensureWindowInViewport() {
+                const rect = this.wnd.getBoundingClientRect();
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                
+                let left = parseInt(this.wnd.style.left) || 0;
+                let top = parseInt(this.wnd.style.top) || 0;
+                
+                // 如果窗口在可视区域外，调整到可视区域内
+                if (left < 0) left = 0;
+                if (top < 0) top = 0;
+                if (left + rect.width > viewportWidth) {
+                    left = viewportWidth - rect.width;
+                }
+                if (top + rect.height > viewportHeight) {
+                    top = viewportHeight - rect.height;
+                }
+                
+                this.wnd.style.left = `${left}px`;
+                this.wnd.style.top = `${top}px`;
+            }
+        }
+    </script>
+
+    <!-- 新增的图形对象类 -->
+    <script>
+        // 图形对象基类
+        class Shape {
+            constructor(x, y, color = null) {
+                this.x = x;
+                this.y = y;
+                this.color = color || this.getRandomColor();
+                this.isDragging = false;
+                this.dragOffsetX = 0;
+                this.dragOffsetY = 0;
+            }
+            
+            getRandomColor() {
+                const colors = [
+                    '#3498db', '#2ecc71', '#e74c3c', '#f39c12', 
+                    '#9b59b6', '#1abc9c', '#d35400', '#c0392b',
+                    '#16a085', '#8e44ad', '#2c3e50', '#27ae60'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            // 检查点是否在图形内（子类需要实现）
+            containsPoint(x, y) {
+                return false;
+            }
+            
+            // 绘制图形（子类需要实现）
+            draw(ctx) {
+                // 子类实现具体绘制逻辑
+            }
+            
+            // 开始拖动
+            startDrag(mouseX, mouseY) {
+                this.isDragging = true;
+                this.dragOffsetX = mouseX - this.x;
+                this.dragOffsetY = mouseY - this.y;
+            }
+            
+            // 更新位置
+            updatePosition(mouseX, mouseY) {
+                if (this.isDragging) {
+                    this.x = mouseX - this.dragOffsetX;
+                    this.y = mouseY - this.dragOffsetY;
+                }
+            }
+            
+            // 停止拖动
+            stopDrag() {
+                this.isDragging = false;
+            }
+        }
+        
+        // 直线类
+        class Line extends Shape {
+            constructor(x1, y1, x2, y2, color = null) {
+                // 直线的中心点
+                super((x1 + x2) / 2, (y1 + y2) / 2, color);
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.lineWidth = 3;
+            }
+            
+            // 检查点是否在直线上（简化：检查点是否在线段附近）
+            containsPoint(x, y) {
+                // 计算点到直线的距离
+                const A = x - this.x1;
+                const B = y - this.y1;
+                const C = this.x2 - this.x1;
+                const D = this.y2 - this.y1;
+                
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                let param = -1;
+                if (lenSq !== 0) param = dot / lenSq;
+                
+                let xx, yy;
+                
+                if (param < 0) {
+                    xx = this.x1;
+                    yy = this.y1;
+                } else if (param > 1) {
+                    xx = this.x2;
+                    yy = this.y2;
+                } else {
+                    xx = this.x1 + param * C;
+                    yy = this.y1 + param * D;
+                }
+                
+                const dx = x - xx;
+                const dy = y - yy;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 如果距离小于阈值，则认为点在直线上
+                return distance < 10;
+            }
+            
+            // 绘制直线
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.lineWidth = this.lineWidth;
+                ctx.strokeStyle = this.color;
+                ctx.stroke();
+                
+                // 如果是被选中的状态，绘制控制点
+                if (this.isDragging) {
+                    ctx.beginPath();
+                    ctx.arc(this.x1, this.y1, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.arc(this.x2, this.y2, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+            
+            // 更新位置（覆盖基类方法，需要同时更新端点）
+            updatePosition(mouseX, mouseY) {
+                if (this.isDragging) {
+                    const dx = mouseX - this.dragOffsetX - this.x;
+                    const dy = mouseY - this.dragOffsetY - this.y;
+                    
+                    this.x = mouseX - this.dragOffsetX;
+                    this.y = mouseY - this.dragOffsetY;
+                    
+                    this.x1 += dx;
+                    this.y1 += dy;
+                    this.x2 += dx;
+                    this.y2 += dy;
+                }
+            }
+        }
+        
+        // 三角形类
+        class Triangle extends Shape {
+            constructor(x1, y1, x2, y2, x3, y3, color = null) {
+                // 三角形的中心点
+                super((x1 + x2 + x3) / 3, (y1 + y2 + y3) / 3, color);
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.x3 = x3;
+                this.y3 = y3;
+            }
+            
+            // 检查点是否在三角形内（使用重心坐标法）
+            containsPoint(x, y) {
+                const area = 0.5 * (-this.y2 * this.x3 + this.y1 * (-this.x2 + this.x3) + this.x1 * (this.y2 - this.y3) + this.x2 * this.y3);
+                const s = 1 / (2 * area) * (this.y1 * this.x3 - this.x1 * this.y3 + (this.y3 - this.y1) * x + (this.x1 - this.x3) * y);
+                const t = 1 / (2 * area) * (this.x1 * this.y2 - this.y1 * this.x2 + (this.y1 - this.y2) * x + (this.x2 - this.x1) * y);
+                
+                return s > 0 && t > 0 && (1 - s - t) > 0;
+            }
+            
+            // 绘制三角形
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.lineTo(this.x3, this.y3);
+                ctx.closePath();
+                ctx.fillStyle = this.color + '80'; // 半透明
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = this.color;
+                ctx.stroke();
+                
+                // 如果是被选中的状态，绘制控制点
+                if (this.isDragging) {
+                    ctx.beginPath();
+                    ctx.arc(this.x1, this.y1, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.arc(this.x2, this.y2, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.arc(this.x3, this.y3, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+            
+            // 更新位置（覆盖基类方法，需要同时更新所有顶点）
+            updatePosition(mouseX, mouseY) {
+                if (this.isDragging) {
+                    const dx = mouseX - this.dragOffsetX - this.x;
+                    const dy = mouseY - this.dragOffsetY - this.y;
+                    
+                    this.x = mouseX - this.dragOffsetX;
+                    this.y = mouseY - this.dragOffsetY;
+                    
+                    this.x1 += dx;
+                    this.y1 += dy;
+                    this.x2 += dx;
+                    this.y2 += dy;
+                    this.x3 += dx;
+                    this.y3 += dy;
+                }
+            }
+        }
+    </script>
+
+    <!-- 主应用程序代码 -->
+    <script>
+        // 扩展 C4CanvasWnd 以支持图形对象
+        class CanvasApp {
+            constructor() {
+                // 创建 C4CanvasWnd 实例
+                if (!window.xdApp) window.xdApp = {};
+                if (!xdApp.c1) xdApp.c1 = new C4CanvasWnd();
+                
+                this.canvasWnd = xdApp.c1;
+                this.canvas = this.canvasWnd.canvas;
+                this.ctx = this.canvas.getContext('2d');
+                
+                // 图形对象数组
+                this.shapes = [];
+                this.selectedShape = null;
+                
+                // 绑定额外的方法到 canvasWnd
+                this.canvasWnd.redraw = this.redraw.bind(this);
+                this.canvasWnd.handleShapeClick = this.handleShapeClick.bind(this);
+                this.canvasWnd.handleShapeDrag = this.handleShapeDrag.bind(this);
+                this.canvasWnd.handleShapeDragEnd = this.handleShapeDragEnd.bind(this);
+                this.canvasWnd.updateWindowStatus = this.updateWindowStatus.bind(this);
+                this.canvasWnd.updateStats = this.updateStats.bind(this);
+                
+                // 初始化
+                this.setupEventListeners();
+                this.updateStats();
+                this.updateWindowStatus();
+                
+                // 初始绘制
+                this.redraw();
+            }
+            
+            // 设置事件监听器
+            setupEventListeners() {
+                document.getElementById('addLineBtn').addEventListener('click', () => this.addRandomLine());
+                document.getElementById('addTriangleBtn').addEventListener('click', () => this.addRandomTriangle());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clearShapes());
+                document.getElementById('toggleBtn').addEventListener('click', () => this.canvasWnd.toggleUI());
+            }
+            
+            // 添加随机直线
+            addRandomLine() {
+                const canvasWidth = this.canvas.width;
+                const canvasHeight = this.canvas.height;
+                
+                // 随机生成直线的两个端点
+                const x1 = Math.random() * (canvasWidth - 100) + 50;
+                const y1 = Math.random() * (canvasHeight - 100) + 50;
+                const x2 = x1 + Math.random() * 100 - 50;
+                const y2 = y1 + Math.random() * 100 - 50;
+                
+                const line = new Line(x1, y1, x2, y2);
+                this.shapes.push(line);
+                
+                this.redraw();
+                this.updateStats();
+            }
+            
+            // 添加随机三角形
+            addRandomTriangle() {
+                const canvasWidth = this.canvas.width;
+                const canvasHeight = this.canvas.height;
+                
+                // 随机生成三角形的三个顶点
+                const x1 = Math.random() * (canvasWidth - 100) + 50;
+                const y1 = Math.random() * (canvasHeight - 100) + 50;
+                const x2 = x1 + Math.random() * 80 - 40;
+                const y2 = y1 + Math.random() * 80 - 40;
+                const x3 = x1 + Math.random() * 80 - 40;
+                const y3 = y1 + Math.random() * 80 - 40;
+                
+                const triangle = new Triangle(x1, y1, x2, y2, x3, y3);
+                this.shapes.push(triangle);
+                
+                this.redraw();
+                this.updateStats();
+            }
+            
+            // 清空所有图形
+            clearShapes() {
+                this.shapes = [];
+                this.selectedShape = null;
+                this.redraw();
+                this.updateStats();
+            }
+            
+            // 处理图形点击
+            handleShapeClick(x, y) {
+                // 从后向前检查，这样最后添加的图形在最上面
+                for (let i = this.shapes.length - 1; i >= 0; i--) {
+                    const shape = this.shapes[i];
+                    if (shape.containsPoint(x, y)) {
+                        // 取消之前选中的图形
+                        if (this.selectedShape) {
+                            this.selectedShape.isDragging = false;
+                        }
+                        
+                        // 选中当前图形
+                        this.selectedShape = shape;
+                        shape.startDrag(x, y);
+                        
+                        // 将选中的图形移到数组最后，这样它会被最后绘制（在最上面）
+                        this.shapes.splice(i, 1);
+                        this.shapes.push(shape);
+                        
+                        this.redraw();
+                        return;
+                    }
+                }
+                
+                // 如果没有点击到任何图形，取消当前选中的图形
+                if (this.selectedShape) {
+                    this.selectedShape.isDragging = false;
+                    this.selectedShape = null;
+                    this.redraw();
+                }
+            }
+            
+            // 处理图形拖动
+            handleShapeDrag(x, y) {
+                if (this.selectedShape && this.selectedShape.isDragging) {
+                    this.selectedShape.updatePosition(x, y);
+                    this.redraw();
+                }
+            }
+            
+            // 处理图形拖动结束
+            handleShapeDragEnd() {
+                if (this.selectedShape) {
+                    this.selectedShape.stopDrag();
+                }
+            }
+            
+            // 重绘画布
+            redraw() {
+                // 清除画布
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 绘制所有图形
+                for (const shape of this.shapes) {
+                    shape.draw(this.ctx);
+                }
+            }
+            
+            // 更新统计信息
+            updateStats() {
+                const lineCount = this.shapes.filter(shape => shape instanceof Line).length;
+                const triangleCount = this.shapes.filter(shape => shape instanceof Triangle).length;
+                const totalCount = this.shapes.length;
+                
+                document.getElementById('lineCount').textContent = lineCount;
+                document.getElementById('triangleCount').textContent = triangleCount;
+                document.getElementById('totalCount').textContent = totalCount;
+            }
+            
+            // 更新窗口状态显示
+            updateWindowStatus() {
+                const status = this.canvasWnd.isVisible ? '显示' : '隐藏';
+                document.getElementById('windowStatus').textContent = status;
+            }
+        }
+        
+        // 初始化应用程序
+        document.addEventListener('DOMContentLoaded', () => {
+            window.canvasApp = new CanvasApp();
+        });
+    </script>
+</body>
+</html>
